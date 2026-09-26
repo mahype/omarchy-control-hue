@@ -34,11 +34,16 @@ Panel {
 
   function toggleExpanded(id) { expandedId = expandedId === id ? "" : id }
 
-  function expandByName(name) {
+  // Tab requested together with expandByName(); applied when the row opens.
+  property string requestedTab: ""
+
+  function expandByName(name, tab) {
     var wanted = String(name || "").toLowerCase()
     var groups = home.groups || []
     for (var i = 0; i < groups.length; i++) {
       if (String(groups[i].name).toLowerCase() !== wanted) continue
+      expandedId = ""
+      requestedTab = Model.TABS.indexOf(String(tab || "")) >= 0 ? String(tab) : ""
       expandedId = groups[i].id
       return true
     }
@@ -60,6 +65,7 @@ Panel {
   } else {
     expandedId = ""
     showConnection = false
+    requestedTab = ""
   }
 
   KeyboardPanel {
@@ -175,6 +181,7 @@ Panel {
                   group: modelData
                   home: root.home
                   expanded: root.expandedId === modelData.id
+                  requestedTab: root.requestedTab
                   onExpandToggled: root.toggleExpanded(modelData.id)
                 }
               }
@@ -207,6 +214,7 @@ Panel {
                   group: modelData
                   home: root.home
                   expanded: root.expandedId === modelData.id
+                  requestedTab: root.requestedTab
                   onExpandToggled: root.toggleExpanded(modelData.id)
                 }
               }

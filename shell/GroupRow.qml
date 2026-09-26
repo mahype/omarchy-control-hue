@@ -13,6 +13,8 @@ Column {
   property var group: null
   property var home: null
   property bool expanded: false
+  // Tab to show when this row is opened from outside (IPC); empty = current mode.
+  property string requestedTab: ""
   signal expandToggled()
 
   // Only one lamp is expanded at a time.
@@ -21,7 +23,10 @@ Column {
   readonly property var strings: Model.strings(Qt.locale().name)
   readonly property var lights: group ? Model.lightsOf(home, group.lightIds) : []
 
-  onExpandedChanged: if (!expanded) { modes.reset(); expandedLightId = "" }
+  onExpandedChanged: {
+    if (!expanded) { modes.reset(); expandedLightId = "" }
+    else if (requestedTab !== "") modes.viewMode = requestedTab
+  }
 
   spacing: Style.space(10)
 

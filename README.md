@@ -6,7 +6,9 @@ the Hue bridge on your local network — no cloud account, no polling. Changes
 made elsewhere (Hue app, wall switches, automations) show up instantly through
 the bridge's event stream.
 
-![Omarchy Light Control for Hue](preview.png)
+| Rooms at a glance | Scenes | Colors | Color temperature |
+|---|---|---|---|
+| ![Rooms](screenshots/overview.png) | ![Scene dropdown](screenshots/scenes.png) | ![Color swatches and sliders](screenshots/color.png) | ![Warm to cold slider](screenshots/temperature.png) |
 
 ## Features
 
@@ -80,15 +82,22 @@ in the Hue app if you like. Your lights, rooms and scenes are not touched.
 | Network | Your Hue bridge over HTTPS; `discovery.meethue.com` only when searching for a bridge and none answers via mDNS |
 
 HTTPS connections are verified against Signify's published Hue root
-certificates (bundled in `src/`), with the bridge ID as the TLS name.
+certificates, with the bridge ID as the TLS name. The two public CA
+certificates in `src/` (`hue-root-bridge.pem`, `hue-root-ca-01.pem`) come from
+Signify's developer documentation on
+[using HTTPS](https://developers.meethue.com/develop/application-design-guidance/using-https/)
+and [Hue bridge certificates](https://developers.meethue.com/develop/application-design-guidance/hue-bridge-certificates/).
 
 ## Keyboard and scripting
 
-The widget registers an IPC target:
+The widget registers an IPC target. `expand` opens the panel with a room or
+zone unfolded; its second argument picks the tab (`scene`, `color`,
+`temperature`, or `""` for the current one):
 
 ```bash
 omarchy-shell io.github.mahype.omarchy-light-control-hue toggle
-omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room"
+omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" ""
+omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" color
 omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
 ```
 

@@ -172,7 +172,12 @@ pub struct Home {
 
 fn device_name(cache: &Cache, light: &Value) -> Option<String> {
     let owner = str_at(light, "/owner/rid")?;
-    str_at(cache.get(owner)?, "/metadata/name").map(str::to_owned)
+    str_at(cache.get(owner)?, "/metadata/name").map(clean_name)
+}
+
+/// Names typed in the Hue app sometimes carry stray spaces.
+fn clean_name(name: &str) -> String {
+    name.trim().to_owned()
 }
 
 fn device_is_plug(cache: &Cache, light: &Value) -> bool {
@@ -227,7 +232,7 @@ fn build_light(cache: &Cache, light: &Value) -> Option<Light> {
     };
     Some(Light {
         name: device_name(cache, light)
-            .or_else(|| str_at(light, "/metadata/name").map(str::to_owned))
+            .or_else(|| str_at(light, "/metadata/name").map(clean_name))
             .unwrap_or_else(|| "Hue".to_owned()),
         on,
         reachable: reachable(cache, light),
@@ -318,7 +323,7 @@ fn build_group(
     sorted_scenes.sort_by_key(|scene| scene.name.to_lowercase());
     Some(Group {
         kind,
-        name: str_at(group, "/metadata/name").unwrap_or("Hue").to_owned(),
+        name: clean_name(str_at(group, "/metadata/name").unwrap_or("Hue")),
         archetype: str_at(group, "/metadata/archetype").unwrap_or("other").to_owned(),
         grouped_light_id: grouped.and_then(|g| str_at(g, "/id")).map(str::to_owned),
         on: if bulbs.is_empty() {
@@ -356,7 +361,7 @@ pub fn home(cache: &Cache) -> Home {
                 str_at(scene, "/group/rid")?.to_owned(),
                 Scene {
                     id: str_at(scene, "/id")?.to_owned(),
-                    name: str_at(scene, "/metadata/name").unwrap_or("Scene").to_owned(),
+                    name: clean_name(str_at(scene, "/metadata/name").unwrap_or("Scene")),
                     active: str_at(scene, "/status/active").is_some_and(|s| s != "inactive"),
                 },
             ))
@@ -423,7 +428,7 @@ mod tests {
     fn fixture() -> Cache {
         let mut cache = Cache::default();
         cache.replace(vec![
-            json!({"id":"dev-lamp","type":"device","metadata":{"name":"Stehlampe"},
+            json!({"id":"dev-lamp","type":"device","metadata":{"name":" Stehlampe "},
                    "product_data":{"product_archetype":"sultan_bulb"},
                    "services":[{"rid":"light-1","rtype":"light"},{"rid":"zb-1","rtype":"zigbee_connectivity"}]}),
             json!({"id":"zb-1","type":"zigbee_connectivity","owner":{"rid":"dev-lamp","rtype":"device"},"status":"connected"}),

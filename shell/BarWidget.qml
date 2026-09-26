@@ -62,10 +62,11 @@ BarWidget {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     // Opens the panel with one room or zone expanded, e.g. for a keybinding.
-    function expand(name: string): string {
+    // tab: "scene", "color", "temperature" or "" for the current mode.
+    function expand(name: string, tab: string): string {
       if (!panelLoader.item) return "unavailable"
       root.open()
-      return panelLoader.item.expandByName(name) ? "ok" : "unknown"
+      return panelLoader.item.expandByName(name, tab) ? "ok" : "unknown"
     }
     function allOff(): string {
       return root.service && root.service.allOff() ? "ok" : "unavailable"
