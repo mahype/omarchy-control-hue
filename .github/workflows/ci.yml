@@ -22,7 +22,7 @@ jobs:
         run: bash tests/check-manifest.sh
 
       - name: Unit tests (JavaScript)
-        run: node --test tests/
+        run: node --test tests/*.test.js
 
       - name: Check certificate bundle
         run: cmp certs/hue-ca-bundle.pem <(cat certs/hue-root-bridge.pem certs/hue-root-ca-01.pem)

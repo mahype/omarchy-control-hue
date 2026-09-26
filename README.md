@@ -142,7 +142,7 @@ Run the checks (Node 22+, jq):
 
 ```bash
 bash tests/check-manifest.sh
-node --test tests/
+node --test tests/*.test.js
 ```
 
 Link a checkout into Omarchy:

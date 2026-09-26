@@ -79,8 +79,36 @@ Item {
   }
 
   function publish() {
-    home = HueHome.home(cache)
+    var next = HueHome.home(cache)
+    // The bridge reports a room change light by light; until a command has
+    // settled, its expected result wins over those intermediate states so a
+    // switch never flips back for a moment.
+    var now = Date.now()
+    overrides = overrides.filter(function(entry) { return entry.until > now })
+    home = Model.applyOverrides(next, overrides, now)
     doc = { state: "ready", bridge: bridgeInfo(), home: home }
+  }
+
+  // ---- Optimistic updates -----------------------------------------------------------
+
+  // How long a confirmed command keeps priority while the lights report in.
+  readonly property int settleTime: 1500
+  property var overrides: []
+
+  function expect(key, kind, id, change) {
+    overrides = overrides.filter(function(entry) { return entry.key !== key })
+      .concat([{ key: key, kind: kind, id: id, change: change, until: Date.now() + 15000 }])
+    home = Model.patchHome(home, kind, id, change)
+    settleTimer.start()
+  }
+
+  function settle(key, ok) {
+    var until = ok ? Date.now() + settleTime : 0
+    overrides = overrides.map(function(entry) {
+      return entry.key === key ? Object.assign({}, entry, { until: until }) : entry
+    })
+    // A failed command shows the real state right away.
+    if (!ok && ready) publish()
   }
 
   // ---- Settings -------------------------------------------------------------------
@@ -154,6 +182,7 @@ Item {
     publishTimer.stop()
     credentials = null
     stream.running = false
+    overrides = []
     cache = HueHome.createCache()
   }
 
@@ -238,6 +267,7 @@ Item {
       delete done[key]
       inflight = done
       error = result.ok ? "" : errorText(result.error)
+      if (!pending[key]) settle(key, result.ok)
       var next = pending[key]
       if (next) {
         var rest = Object.assign({}, pending)
@@ -256,9 +286,9 @@ Item {
 
   function setGroup(groupedLightId, change) {
     if (!groupedLightId) return false
-    home = Model.patchHome(home, "group", groupedLightId, change)
-    return put("group:" + groupedLightId + ":" + Object.keys(change).join(","),
-      "grouped_light", groupedLightId, HueHome.stateBody(change))
+    var key = "group:" + groupedLightId + ":" + Object.keys(change).join(",")
+    expect(key, "group", groupedLightId, change)
+    return put(key, "grouped_light", groupedLightId, HueHome.stateBody(change))
   }
 
   // With a scene active the scene is re-recalled at the new brightness, which
@@ -268,15 +298,17 @@ Item {
     if (!group.activeSceneId) return setGroup(group.groupedLightId, { brightness: brightness })
     var level = HueHome.stateBody({ brightness: brightness })
     if (!level) return false
-    home = Model.patchHome(home, "group", group.groupedLightId, { brightness: brightness })
-    return put("group:" + group.groupedLightId + ":brightness", "scene", group.activeSceneId,
+    var key = "group:" + group.groupedLightId + ":brightness"
+    expect(key, "group", group.groupedLightId, { brightness: brightness })
+    return put(key, "scene", group.activeSceneId,
       { recall: { action: "active", dimming: level.dimming } })
   }
 
   function setLight(lightId, change) {
     if (!lightId) return false
-    home = Model.patchHome(home, "light", lightId, change)
-    return put("light:" + lightId + ":" + Object.keys(change).join(","), "light", lightId, HueHome.stateBody(change))
+    var key = "light:" + lightId + ":" + Object.keys(change).join(",")
+    expect(key, "light", lightId, change)
+    return put(key, "light", lightId, HueHome.stateBody(change))
   }
 
   function recallScene(sceneId) {
@@ -286,7 +318,7 @@ Item {
   function allOff() {
     var target = home.homeGroupedLightId
     if (!target) return false
-    home = Model.patchHome(home, "all-off", "", {})
+    expect("all", "all-off", "", {})
     return put("all", "grouped_light", target, { on: { on: false } })
   }
 
@@ -517,6 +549,20 @@ Item {
   Timer {
     id: retryTimer
     onTriggered: if (root.credentials) root.loadResources(true)
+  }
+
+  // Shows the bridge's own state once pending commands have settled.
+  Timer {
+    id: settleTimer
+    interval: 250
+    repeat: true
+    onTriggered: {
+      var now = Date.now()
+      if (!root.overrides.some(function(entry) { return entry.until <= now })) return
+      if (root.ready) root.publish()
+      else root.overrides = []
+      if (root.overrides.length === 0) stop()
+    }
   }
 
   // Coalesces bursts of events into one update of the panel.

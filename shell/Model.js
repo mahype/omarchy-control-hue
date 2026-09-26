@@ -231,7 +231,18 @@ function patchHome(home, kind, id, change) {
   return next
 }
 
+// Expected results of commands that have not settled yet, laid over the
+// state the bridge reports. overrides: [{ kind, id, change, until }].
+function applyOverrides(home, overrides, now) {
+  var next = home
+  ;(overrides || []).forEach(function(entry) {
+    if (entry.until > now) next = patchHome(next, entry.kind, entry.id, entry.change)
+  })
+  return next
+}
+
 if (typeof module !== "undefined") module.exports = {
+  applyOverrides: applyOverrides,
   STRINGS: STRINGS, strings: strings, TABS: TABS, COLOR_PRESETS: COLOR_PRESETS, hueDistance: hueDistance,
   parseLine: parseLine, emptyHome: emptyHome, lightById: lightById, lightsOf: lightsOf,
   groupsOfKind: groupsOfKind, plugs: plugs, tabsFor: tabsFor, initialTab: initialTab,

@@ -61,6 +61,20 @@ test("group edits patch members; switching off includes plugs", () => {
   assert.strictEqual(home.groups[0].on, true, "the original stays untouched")
 })
 
+test("pending commands win over intermediate bridge states until they settle", () => {
+  // The bridge has only switched one of two lamps off so far.
+  const partial = JSON.parse(JSON.stringify(home))
+  partial.lights.push({ id: "l2", name: "Zweite", on: true, plug: false, brightness: 40 })
+  partial.groups[0].lightIds = ["l1", "l2"]
+  partial.lights[0].on = false
+  const overrides = [{ kind: "group", id: "g1", change: { on: false }, until: 1000 }]
+  const shown = Model.applyOverrides(partial, overrides, 500)
+  assert.strictEqual(shown.groups[0].on, false)
+  assert.ok(shown.lights.filter((l) => !l.plug).every((l) => !l.on))
+  const settled = Model.applyOverrides(partial, overrides, 1500)
+  assert.strictEqual(settled.groups[0].on, true, "after settling the bridge's own state shows again")
+})
+
 test("all-off clears everything", () => {
   const next = Model.patchHome(home, "all-off", "", {})
   assert.ok(next.lights.every((light) => !light.on))
