@@ -7,7 +7,6 @@
   "license": "MIT",
   "homepage": "https://github.com/mahype/omarchy-light-control-hue",
   "description": "Control Philips Hue lights from the Omarchy bar: rooms, zones, scenes, colors, color temperature, single lamps and smart plugs, with live updates. Talks to the Hue bridge on your local network; no cloud, nothing to build or install.",
-  "keepLoaded": true,
   "kinds": [
     "service",
     "bar-widget"
