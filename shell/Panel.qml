@@ -4,6 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
+import "Profiles.js" as Profiles
 
 // Popup. Holds no light state of its own — everything comes from the
 // service; this file only decides what to show and forwards actions.
@@ -32,6 +33,9 @@ Panel {
   // Only one room, zone or plug is expanded at a time; nothing stays expanded between opens.
   property string expandedId: ""
   property bool showConnection: false
+  readonly property var profiles: service ? service.profiles : []
+  // "" = closed, "new" = new profile, otherwise the ID of the edited profile.
+  property string editingProfile: ""
 
   function toggleExpanded(id) { expandedId = expandedId === id ? "" : id }
 
@@ -67,6 +71,7 @@ Panel {
     expandedId = ""
     showConnection = false
     requestedTab = ""
+    editingProfile = ""
   }
 
   KeyboardPanel {
@@ -82,7 +87,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: hostField.activeFocus
+      blocked: hostField.activeFocus || (profileEditor.item !== null && profileEditor.item.typing)
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -157,12 +162,189 @@ Panel {
             opacity: isError ? 1 : 0.6
           }
 
+          // ---------- Profiles ----------
+          Column {
+            visible: root.ready
+            width: parent.width
+            spacing: Style.space(8)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(profilesHeader.implicitHeight, addProfile.implicitHeight)
+
+              PanelSectionHeader {
+                id: profilesHeader
+                text: root.strings.profiles
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              PanelActionButton {
+                id: addProfile
+                visible: root.editingProfile === ""
+                iconText: String.fromCodePoint(0xF0415)  // plus
+                tooltipText: root.strings.saveProfile
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: root.editingProfile = "new"
+              }
+            }
+
+            Repeater {
+              model: root.editingProfile === "" ? root.profiles : []
+              Item {
+                id: profileRow
+                required property var modelData
+                width: parent.width
+                implicitHeight: Math.max(profileText.implicitHeight, editProfile.implicitHeight)
+
+                Rectangle {
+                  anchors.fill: parent
+                  anchors.margins: -Style.space(4)
+                  radius: Style.cornerRadius
+                  color: profileMouse.containsMouse
+                    ? Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08) : "transparent"
+                }
+
+                Text {
+                  id: slotBadge
+                  width: Style.space(28)
+                  horizontalAlignment: Text.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: profileRow.modelData.slot ? String(profileRow.modelData.slot) : "·"
+                  color: root.bar.foreground
+                  opacity: profileRow.modelData.slot ? 1 : 0.45
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.title
+                  font.bold: true
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Column {
+                  id: profileText
+                  anchors.left: slotBadge.right
+                  anchors.leftMargin: Style.space(10)
+                  anchors.right: editProfile.left
+                  anchors.rightMargin: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
+
+                  Text {
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    text: profileRow.modelData.name
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
+                  }
+
+                  HintText {
+                    bar: root.bar
+                    width: parent.width
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                    font.pixelSize: Style.font.caption
+                    text: (profileRow.modelData.lights.length === 1 ? root.strings.profileOneLight
+                        : root.strings.profileLightCount.replace("%1", String(profileRow.modelData.lights.length)))
+                      + " · " + (profileRow.modelData.slot ? Profiles.shortcutLabel(profileRow.modelData.slot) : root.strings.noShortcut)
+                  }
+                }
+
+                // Clicking the row applies the profile.
+                MouseArea {
+                  id: profileMouse
+                  anchors.left: parent.left
+                  anchors.right: editProfile.left
+                  anchors.top: parent.top
+                  anchors.bottom: parent.bottom
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.service.applyProfile(profileRow.modelData.id)
+                }
+
+                PanelActionButton {
+                  id: editProfile
+                  iconText: String.fromCodePoint(0xF03EB)  // pencil
+                  tooltipText: root.strings.editProfile
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  onClicked: root.editingProfile = profileRow.modelData.id
+                }
+              }
+            }
+
+            HintText {
+              bar: root.bar
+              visible: root.editingProfile === "" && root.profiles.length === 0
+              width: parent.width
+              text: root.strings.profileHint
+              font.pixelSize: Style.font.caption
+            }
+
+            Loader {
+              id: profileEditor
+              active: root.editingProfile !== ""
+              visible: active
+              width: parent.width
+              sourceComponent: ProfileEditor {
+                width: profileEditor.width
+                bar: root.bar
+                service: root.service
+                home: root.home
+                profile: root.editingProfile === "new" ? null : Profiles.find(root.profiles, root.editingProfile)
+                onClosed: root.editingProfile = ""
+              }
+            }
+
+            // Offered once a profile has a key and Hyprland does not load the shortcuts yet.
+            Column {
+              visible: root.editingProfile === "" && root.service !== null && !root.service.bindingsInstalled
+                && root.profiles.some(function(p) { return p.slot > 0 })
+              width: parent.width
+              spacing: Style.space(6)
+
+              HintText {
+                bar: root.bar
+                width: parent.width
+                text: root.strings.bindingsTitle
+                opacity: 1
+                font.bold: true
+              }
+
+              HintText {
+                bar: root.bar
+                width: parent.width
+                text: root.strings.bindingsDetail
+                font.pixelSize: Style.font.caption
+              }
+
+              Button {
+                text: root.strings.bindingsInstall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                fontSize: Style.font.bodySmall
+                bordered: true
+                onClicked: root.service.installBindings()
+              }
+            }
+          }
+
           // ---------- Rooms ----------
           Column {
             visible: root.ready && root.rooms.length > 0
             width: parent.width
             spacing: Style.space(10)
 
+            PanelSeparator { foreground: root.bar.foreground }
             PanelSectionHeader { text: root.strings.rooms; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
 
             Repeater {

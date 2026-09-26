@@ -20,7 +20,16 @@ var STRINGS = {
     unreachableSince: "Unreachable", offline: "offline", commandFailed: "Hue command failed",
     keyboardHint: "Esc close · Tab switch panel", leftClick: "Click: open Hue controls",
     chooseScene: "Choose scene", identify: "Blink", on: "on", off: "off", unreachableShort: "unreachable",
-    all: "All lights"
+    all: "All lights",
+    profiles: "PROFILES", saveProfile: "Save current state as profile", editProfile: "Edit profile",
+    profileName: "Profile name", profileLights: "Lights in this profile", shortcut: "Shortcut",
+    noShortcut: "No shortcut", shortcutMoves: "Moves over from “%1”.", save: "Save", delete: "Delete",
+    recapture: "Save the current light state", recaptureHint: "Off keeps the stored colors and brightness; added lights always take their current state.",
+    profileHint: "Saves the current state of the chosen lights. Lights you leave out stay as they are when the profile is applied.",
+    otherLights: "Other", profileLightCount: "%1 lights", profileOneLight: "1 light", applyProfile: "Apply",
+    bindingsTitle: "Shortcuts are not active yet",
+    bindingsDetail: "SUPER + CTRL + ALT + 1…9 applies a profile, SUPER + CTRL + ALT + 0 turns everything off. This adds one include line to ~/.config/hypr/bindings.lua.",
+    bindingsInstall: "Enable shortcuts"
   },
   de: {
     title: "Hue", missing: "Benötigte Programme fehlen",
@@ -41,7 +50,16 @@ var STRINGS = {
     unreachableSince: "Nicht erreichbar", offline: "offline", commandFailed: "Hue-Befehl fehlgeschlagen",
     keyboardHint: "Esc schließen · Tab Panel wechseln", leftClick: "Klick: Hue-Steuerung öffnen",
     chooseScene: "Szene wählen", identify: "Blinken lassen", on: "an", off: "aus", unreachableShort: "nicht erreichbar",
-    all: "Alle Lampen"
+    all: "Alle Lampen",
+    profiles: "PROFILE", saveProfile: "Aktuellen Zustand als Profil speichern", editProfile: "Profil bearbeiten",
+    profileName: "Name des Profils", profileLights: "Lampen in diesem Profil", shortcut: "Tastenkürzel",
+    noShortcut: "Kein Tastenkürzel", shortcutMoves: "Wird von „%1“ übernommen.", save: "Speichern", delete: "Löschen",
+    recapture: "Aktuellen Lampenzustand speichern", recaptureHint: "Aus: gespeicherte Farben und Helligkeit bleiben; neu gewählte Lampen übernehmen immer ihren aktuellen Zustand.",
+    profileHint: "Speichert den aktuellen Zustand der gewählten Lampen. Nicht gewählte Lampen bleiben beim Anwenden, wie sie sind.",
+    otherLights: "Ohne Raum", profileLightCount: "%1 Lampen", profileOneLight: "1 Lampe", applyProfile: "Anwenden",
+    bindingsTitle: "Tastenkürzel sind noch nicht aktiv",
+    bindingsDetail: "SUPER + CTRL + ALT + 1…9 wendet ein Profil an, SUPER + CTRL + ALT + 0 schaltet alles aus. Dafür wird eine Zeile in ~/.config/hypr/bindings.lua ergänzt.",
+    bindingsInstall: "Tastenkürzel aktivieren"
   }
 }
 
@@ -99,6 +117,21 @@ function groupsOfKind(home, kind) {
 function plugs(home) {
   var lights = home && home.lights ? home.lights : []
   return lights.filter(function(light) { return light.plug })
+}
+
+// Lights by room for the profile editor: [{ id, name, lights }], rooms in
+// the bridge's order, lights without a room last.
+function lightsByRoom(home, otherName) {
+  var sections = []
+  var placed = {}
+  groupsOfKind(home, "room").forEach(function(room) {
+    var lights = lightsOf(home, (room.lightIds || []).concat(room.plugIds || []))
+    lights.forEach(function(light) { placed[light.id] = true })
+    if (lights.length > 0) sections.push({ id: room.id, name: room.name, lights: lights })
+  })
+  var rest = ((home && home.lights) || []).filter(function(light) { return !placed[light.id] })
+  if (rest.length > 0) sections.push({ id: "other", name: otherName, lights: rest })
+  return sections
 }
 
 // Tabs worth offering for a group or light, in fixed order.
@@ -245,7 +278,7 @@ if (typeof module !== "undefined") module.exports = {
   applyOverrides: applyOverrides,
   STRINGS: STRINGS, strings: strings, TABS: TABS, COLOR_PRESETS: COLOR_PRESETS, hueDistance: hueDistance,
   parseLine: parseLine, emptyHome: emptyHome, lightById: lightById, lightsOf: lightsOf,
-  groupsOfKind: groupsOfKind, plugs: plugs, tabsFor: tabsFor, initialTab: initialTab,
+  groupsOfKind: groupsOfKind, plugs: plugs, lightsByRoom: lightsByRoom, tabsFor: tabsFor, initialTab: initialTab,
   kelvin: kelvin, mirek: mirek, kelvinRange: kelvinRange, sceneName: sceneName, subtitle: subtitle,
   summary: summary, needsAttention: needsAttention, needsSetup: needsSetup, tooltip: tooltip,
   compactError: compactError, parseJson: parseJson, patchHome: patchHome

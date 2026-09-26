@@ -68,6 +68,10 @@ BarWidget {
       root.open()
       return panelLoader.item.expandByName(name, tab) ? "ok" : "unknown"
     }
+    // key: shortcut slot (1–9), profile ID or name.
+    function applyProfile(key: string): string {
+      return root.service && root.service.applyProfile(key) ? "ok" : "unknown"
+    }
     function allOff(): string {
       return root.service && root.service.allOff() ? "ok" : "unavailable"
     }

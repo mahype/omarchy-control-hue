@@ -4,6 +4,7 @@ import Quickshell.Io
 import "HueBridge.js" as Hue
 import "HueHome.js" as HueHome
 import "Model.js" as Model
+import "Profiles.js" as Profiles
 
 // Owner of all Hue state. Mounted once per session; the bar widget and the
 // panel reach it through `bar.shell.serviceFor(...)` and call only the action
@@ -12,7 +13,9 @@ import "Model.js" as Model
 // Everything runs on tools Omarchy already ships: curl for the bridge API and
 // its event stream (verified against the bundled Hue root CAs, with the bridge
 // ID as TLS name), openssl to read the ID of a bridge entered by address,
-// secret-tool for the bridge key and avahi-browse for discovery.
+// secret-tool for the bridge key and avahi-browse for discovery. Profile
+// shortcuts come from hypr/bindings.lua, which the user's Hyprland bindings
+// include once.
 Item {
   id: root
 
@@ -26,6 +29,11 @@ Item {
   readonly property string configPath: configDir + "/config.json"
   readonly property string caFile: localPath("../certs/hue-ca-bundle.pem")
   readonly property var strings: Model.strings(Qt.locale().name)
+  readonly property string homeDir: Quickshell.env("HOME") || ""
+  readonly property string hyprBindingsPath: (Quickshell.env("XDG_CONFIG_HOME") || (homeDir + "/.config")) + "/hypr/bindings.lua"
+  // The installed plugin's path, so the include survives rebuilds of a checkout.
+  readonly property string pluginBindingsPath: (Quickshell.env("XDG_CONFIG_HOME") || (homeDir + "/.config"))
+    + "/omarchy/plugins/io.github.mahype.omarchy-control-hue/hypr/bindings.lua"
 
   // ---- State the panel reads ----------------------------------------------------
 
@@ -49,7 +57,10 @@ Item {
   readonly property bool pairing: pairingBridge !== null
   readonly property bool setupBusy: discovering || pairing || identifying || secretStore.running
 
-  property var config: ({ version: 1, bridge: null })
+  property var config: ({ version: 1, bridge: null, profiles: [] })
+  readonly property var profiles: config.profiles
+  // False until the user's Hyprland bindings include the profile shortcuts.
+  property bool bindingsInstalled: true
   // Credentials stay inside the service; they are never rendered or logged.
   property var credentials: null
 
@@ -119,12 +130,14 @@ Item {
     var host = String(value && value.host || "").trim()
     return {
       version: 1,
-      bridge: id && Hue.isHost(host) ? { id: id, host: host, name: String(value.name || "Hue Bridge") } : null
+      bridge: id && Hue.isHost(host) ? { id: id, host: host, name: String(value.name || "Hue Bridge") } : null,
+      profiles: Profiles.normalize(raw && raw.profiles)
     }
   }
 
+  // next: the fields to change; the rest stays as it is.
   function saveConfig(next) {
-    var normalized = normalizeConfig(next)
+    var normalized = normalizeConfig(Object.assign({}, config, next))
     configFile.setText(JSON.stringify(normalized, null, 2) + "\n")
     applyConfig(normalized)
   }
@@ -324,6 +337,58 @@ Item {
 
   function allOn() {
     return setGroup(home.homeGroupedLightId, { on: true })
+  }
+
+  // ---- Profiles ------------------------------------------------------------------------
+
+  // draft: { id (empty for a new profile), name, slot, lightIds, recapture }.
+  // New lights are always saved with their current state.
+  function saveProfile(draft) {
+    if (!ready || !draft) return false
+    var previous = draft.id ? Profiles.find(profiles, draft.id) : null
+    var lights = Profiles.entries(draft.lightIds, previous, !previous || draft.recapture === true, function(id) {
+      var light = cache.resources[id]
+      return light && light.type === "light" ? Hue.restoreState(light) : null
+    })
+    var profile = Profiles.normalizeProfile({
+      id: previous ? previous.id : Profiles.newId(Date.now(), Math.random()),
+      name: draft.name, slot: draft.slot, lights: lights
+    })
+    if (!profile) { error = strings.commandFailed; return false }
+    saveConfig({ profiles: Profiles.upsert(profiles, profile) })
+    return true
+  }
+
+  function deleteProfile(id) {
+    if (!Profiles.find(profiles, id)) return false
+    saveConfig({ profiles: Profiles.remove(profiles, id) })
+    return true
+  }
+
+  // key: slot number, profile ID or name. Lights outside the profile stay as they are.
+  function applyProfile(key) {
+    var profile = Profiles.find(profiles, key)
+    if (!ready || !profile) return false
+    profile.lights.forEach(function(entry) {
+      if (!cache.resources[entry.id]) return
+      var body = Profiles.lightBody(entry.state)
+      var change = Profiles.expectedChange(entry.state, HueHome.xyToHex)
+      if (!body || !change) return
+      var requestKey = "light:" + entry.id + ":profile"
+      expect(requestKey, "light", entry.id, change)
+      put(requestKey, "light", entry.id, body)
+    })
+    return true
+  }
+
+  function installBindings() {
+    var addition = Profiles.bindingsAppend(hyprBindings.loaded ? hyprBindings.text() : "",
+      Profiles.includeBlock(pluginBindingsPath, homeDir))
+    if (addition === "" || bindingsWriter.running) return false
+    bindingsWriter.value = addition
+    bindingsWriter.stdinEnabled = true
+    bindingsWriter.running = true
+    return true
   }
 
   // kind: "light" or "group" (a grouped light ID).
@@ -578,6 +643,41 @@ Item {
     interval: 300000
     repeat: true
     onTriggered: if (root.ready) root.loadResources(false)
+  }
+
+  // Appends the include block; tee -a never rewrites what is already there.
+  Process {
+    id: bindingsWriter
+    property string value: ""
+    command: ["tee", "-a", root.hyprBindingsPath]
+    stdout: StdioCollector { waitForEnd: true }
+    onStarted: {
+      write(value)
+      value = ""
+      stdinEnabled = false
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) { root.error = root.strings.commandFailed; return }
+      hyprBindings.reload()
+      Quickshell.execDetached(["hyprctl", "reload"])
+    }
+  }
+
+  FileView {
+    id: hyprBindings
+    property bool loaded: false
+    path: root.hyprBindingsPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      loaded = true
+      root.bindingsInstalled = text().indexOf(Profiles.BINDINGS_MARKER) >= 0
+    }
+    onLoadFailed: {
+      loaded = false
+      root.bindingsInstalled = false
+    }
   }
 
   // FileView does not create parent directories.
