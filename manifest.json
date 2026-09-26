@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.mahype.omarchy-light-control-hue",
+  "name": "Omarchy Light Control for Hue",
+  "version": "0.1.0",
+  "author": "Sven Wagener",
+  "license": "MIT",
+  "homepage": "https://github.com/mahype/omarchy-light-control-hue",
+  "description": "Control Philips Hue lights from the Omarchy bar: rooms, zones, scenes, colors, color temperature, single lamps and smart plugs, with live updates. Talks to the Hue bridge on your local network; no cloud. Needs the bundled Rust helper built via install.sh.",
+  "keepLoaded": true,
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "shell/Service.qml",
+    "barWidget": "shell/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Hue",
+    "description": "Click to open the panel with rooms, scenes, colors and plugs.",
+    "category": "Home",
+    "aliases": [
+      "hue",
+      "philips",
+      "lights",
+      "lamps",
+      "scenes"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showZones": true,
+      "showPlugs": true
+    },
+    "schema": [
+      {
+        "key": "showZones",
+        "type": "boolean",
+        "label": "Show zones",
+        "defaultValue": true,
+        "description": "List Hue zones below the rooms."
+      },
+      {
+        "key": "showPlugs",
+        "type": "boolean",
+        "label": "Show plugs",
+        "defaultValue": true,
+        "description": "List smart plugs in their own section."
+      }
+    ]
+  }
+}
