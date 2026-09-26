@@ -14,20 +14,7 @@ the Hue bridge on your local network — no cloud account, no polling. Changes
 made elsewhere (Hue app, wall switches, automations) show up instantly through
 the bridge's event stream.
 
-<table>
-  <tr>
-    <th width="25%">Rooms at a glance</th>
-    <th width="25%">Scenes</th>
-    <th width="25%">Colors</th>
-    <th width="25%">Color temperature</th>
-  </tr>
-  <tr>
-    <td valign="top"><img src="screenshots/overview.png" alt="Rooms with status, color dot and switch"></td>
-    <td valign="top"><img src="screenshots/scenes.png" alt="Scene dropdown of a room"></td>
-    <td valign="top"><img src="screenshots/color.png" alt="Color swatches with hue and saturation sliders"></td>
-    <td valign="top"><img src="screenshots/temperature.png" alt="Warm to cold color temperature slider"></td>
-  </tr>
-</table>
+![Omarchy Light Control for Hue](preview.png)
 
 ## Features
 
@@ -45,6 +32,22 @@ the bridge's event stream.
 - **Smart plugs** in their own section.
 - **All lights** switch in the panel header.
 - Controls only appear when the lamps support them.
+
+Unfold a room for its controls. Scene, Color and Temperature are exclusive,
+brightness works with all of them:
+
+<table>
+  <tr>
+    <th width="33%">Scene</th>
+    <th width="33%">Color</th>
+    <th width="33%">Temperature</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="screenshots/scenes.png" alt="Scene dropdown of a room"></td>
+    <td valign="top"><img src="screenshots/color.png" alt="Color swatches with hue and saturation sliders"></td>
+    <td valign="top"><img src="screenshots/temperature.png" alt="Warm to cold color temperature slider"></td>
+  </tr>
+</table>
 
 ## Requirements
 
