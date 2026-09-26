@@ -30,17 +30,15 @@ Item {
   readonly property bool pairing: setupProcess.running && setupOperation === "pair"
   readonly property var strings: Model.strings(Qt.locale().name)
 
-  // A development checkout runs straight from `cargo build --release`.
-  readonly property string bundledHelper: {
-    var url = String(Qt.resolvedUrl("../target/release/omarchy-light-control-hue"))
+  // The helper ships with the plugin; Python is part of every Omarchy install.
+  readonly property string helperScript: {
+    var url = String(Qt.resolvedUrl("../helper/main.py"))
     return url.indexOf("file://") === 0 ? decodeURIComponent(url.slice(7)) : url
   }
-  readonly property string locateHelper:
-    "for c in \"$HOME/.local/bin/omarchy-light-control-hue\" \"$1\"; do [ -x \"$c\" ] && { h=\"$c\"; break; }; done; "
-    + "[ -n \"$h\" ] || h=$(command -v omarchy-light-control-hue) || exit 127; "
 
   function helperCommand(args) {
-    return ["sh", "-c", locateHelper + "shift; exec \"$h\" \"$@\"", "omarchy-light-control-hue", bundledHelper].concat(args)
+    // -B keeps the plugin checkout free of __pycache__; env exits 127 without python3.
+    return ["env", "python3", "-B", "-u", helperScript].concat(args)
   }
 
   // ---- stream ------------------------------------------------------------

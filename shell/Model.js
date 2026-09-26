@@ -3,8 +3,8 @@
 
 var STRINGS = {
   en: {
-    title: "Hue", missing: "The omarchy-light-control-hue helper is not installed",
-    missingHint: "Run install.sh in the plugin folder; the widget reconnects automatically.",
+    title: "Hue", missing: "Python 3 is not available",
+    missingHint: "The Hue helper needs python3 (part of every Omarchy install). The widget reconnects automatically.",
     connecting: "Connecting to the Hue bridge…", unconfigured: "No Hue bridge selected",
     unpaired: "The Hue bridge is not paired yet", unauthorized: "The Hue bridge no longer accepts this computer",
     unreachable: "Hue bridge unreachable", error: "Hue needs attention",
@@ -24,8 +24,8 @@ var STRINGS = {
     all: "All lights"
   },
   de: {
-    title: "Hue", missing: "Der Hilfsdienst omarchy-light-control-hue ist nicht installiert",
-    missingHint: "Führe install.sh im Plugin-Ordner aus; das Widget verbindet sich dann automatisch.",
+    title: "Hue", missing: "Python 3 ist nicht verfügbar",
+    missingHint: "Der Hue-Helfer braucht python3 (in jeder Omarchy-Installation enthalten). Das Widget verbindet sich dann automatisch.",
     connecting: "Verbinde mit der Hue Bridge…", unconfigured: "Keine Hue Bridge ausgewählt",
     unpaired: "Die Hue Bridge ist noch nicht gekoppelt", unauthorized: "Die Hue Bridge akzeptiert diesen Rechner nicht mehr",
     unreachable: "Hue Bridge nicht erreichbar", error: "Hue braucht Aufmerksamkeit",

@@ -5,8 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Omarchy 4](https://img.shields.io/badge/Omarchy-4-black.svg)](https://omarchy.org)
 [![Philips Hue local API](https://img.shields.io/badge/Philips%20Hue-local%20API%20v2-0065d3.svg)](https://developers.meethue.com/)
-[![Local control](https://img.shields.io/badge/control-local%20only-lightgrey.svg)](#what-it-stores-and-where-it-connects)
-[![Verified TLS](https://img.shields.io/badge/TLS-certificate%20verified-brightgreen.svg)](#what-it-stores-and-where-it-connects)
+[![Local control](https://img.shields.io/badge/control-local%20only-lightgrey.svg)](#privacy-and-security)
+[![Verified TLS](https://img.shields.io/badge/TLS-certificate%20verified-brightgreen.svg)](#privacy-and-security)
+[![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](#requirements)
 
 Control your Philips Hue lights from the Omarchy bar: rooms, zones, scenes,
 colors, color temperature, single lamps and smart plugs. The plugin talks to
@@ -31,6 +32,9 @@ the bridge's event stream.
 - **Single lamps** inside each room, each with its own controls.
 - **Smart plugs** in their own section.
 - **All lights** switch in the panel header.
+- **Live updates:** changes from the Hue app, switches or automations appear
+  instantly through the bridge's event stream.
+- **English and German:** the UI follows the system language.
 - Controls only appear when the lamps support them.
 
 Unfold a room for its controls. Scene, Color and Temperature are exclusive,
@@ -51,64 +55,63 @@ brightness works with all of them:
 
 ## Requirements
 
-- Omarchy with the Quickshell-based `omarchy-shell`
+- Omarchy 4 or newer
 - A Philips Hue bridge (v2, square) on the same network
-- Rust toolchain (`cargo`) to build the helper once: `omarchy pkg add rust`
-- A Secret Service provider for storing the bridge key (GNOME Keyring is the
-  Omarchy default)
 
-## Install
+Everything else is part of every Omarchy install: `python3` for the bridge
+helper, `avahi` for discovery and `libsecret` (`secret-tool`) with GNOME
+Keyring for the bridge key. There are no other runtime dependencies, and
+nothing is built, bundled as a binary or downloaded.
+
+## Installation
 
 ```bash
-omarchy plugin add https://github.com/mahype/omarchy-light-control-hue.git
-~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue/install.sh
-omarchy plugin enable io.github.mahype.omarchy-light-control-hue --section right
+omarchy plugin add https://github.com/mahype/omarchy-light-control-hue.git --enable
 ```
 
-`install.sh` builds the `omarchy-light-control-hue` helper from this
-repository and installs it to `~/.local/bin`. It runs as your user and
-changes no Omarchy configuration. The plugin itself never builds, downloads
-or installs anything.
+Then connect your bridge:
 
-Then click the Hue icon in the bar:
+1. Click the light bulb in the bar.
+2. Click **Find Hue bridge**, then **Select** next to your bridge (or enter its
+   IP address).
+3. Click **Pair** and press the round link button on top of the bridge within
+   30 seconds.
 
-1. **Find Hue bridge** (mDNS, falling back to Signify's discovery service),
-   or enter the bridge's IP address.
-2. **Pair**, then press the round link button on the bridge within 30 seconds.
+To update later, run `omarchy plugin update io.github.mahype.omarchy-light-control-hue`.
 
-## Update
+## Removal
 
-```bash
-omarchy plugin update io.github.mahype.omarchy-light-control-hue
-~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue/install.sh
-```
-
-## Remove
+Click **Disconnect bridge** under *Connection* in the panel (this deletes the
+stored key), then:
 
 ```bash
-~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue/uninstall.sh
 omarchy plugin remove io.github.mahype.omarchy-light-control-hue
+rm -rf ~/.config/omarchy-light-control-hue   # bridge selection
 ```
 
-`uninstall.sh` deletes the stored bridge key from the Secret Service,
-`~/.config/omarchy-light-control-hue` and the helper binary. The Hue bridge
-keeps a registration entry named `omarchy-light-control-hue#desktop`; remove it
-in the Hue app if you like. Your lights, rooms and scenes are not touched.
+The Hue bridge keeps a registration entry named
+`omarchy-light-control-hue#desktop`; remove it in the Hue app if you like.
+Your lights, rooms and scenes are not touched.
 
-## What it stores and where it connects
+## Privacy and security
 
-| What | Where |
-|---|---|
-| Bridge ID, address and name | `~/.config/omarchy-light-control-hue/config.json` |
-| Bridge application key | Secret Service, service `io.github.mahype.omarchy-light-control-hue` |
-| Network | Your Hue bridge over HTTPS; `discovery.meethue.com` only when searching for a bridge and none answers via mDNS |
-
-HTTPS connections are verified against Signify's published Hue root
-certificates, with the bridge ID as the TLS name. The two public CA
-certificates in `src/` (`hue-root-bridge.pem`, `hue-root-ca-01.pem`) come from
-Signify's developer documentation on
-[using HTTPS](https://developers.meethue.com/develop/application-design-guidance/using-https/)
-and [Hue bridge certificates](https://developers.meethue.com/develop/application-design-guidance/hue-bridge-certificates/).
+- **Local only.** All control traffic goes to your Hue bridge over HTTPS. The
+  only other address is `discovery.meethue.com`, and only when you search for
+  a bridge and none answers via mDNS.
+- **Verified TLS.** The bridge certificate must chain to one of Signify's two
+  published Hue root certificates (`helper/certs/`, from Signify's developer
+  documentation on
+  [using HTTPS](https://developers.meethue.com/develop/application-design-guidance/using-https/)
+  and [bridge certificates](https://developers.meethue.com/develop/application-design-guidance/hue-bridge-certificates/)),
+  and it must name the ID of the bridge you selected.
+- **Key in the keyring.** The bridge's application key is stored in the Secret
+  Service (service `io.github.mahype.omarchy-light-control-hue`), never in a
+  file. `~/.config/omarchy-light-control-hue/config.json` holds only the bridge
+  ID, address and name; the directory is created with mode 0700.
+- **External programs:** `python3` (the helper in `helper/`, standard library
+  only), `avahi-browse` (discovery) and `secret-tool` (keyring). All are called
+  with argument arrays, never through a shell.
+- No installer, no services, no downloads. No sudo or pkexec is required.
 
 ## Keyboard and scripting
 
@@ -118,7 +121,6 @@ zone unfolded; its second argument picks the tab (`scene`, `color`,
 
 ```bash
 omarchy-shell io.github.mahype.omarchy-light-control-hue toggle
-omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" ""
 omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" color
 omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
 ```
@@ -126,29 +128,48 @@ omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
 The helper also works on its own:
 
 ```bash
-omarchy-light-control-hue discover
-omarchy-light-control-hue connect 192.168.1.20
-omarchy-light-control-hue pair
-omarchy-light-control-hue watch      # JSON state stream; requests on stdin
-omarchy-light-control-hue set group <grouped_light id> --on true --brightness 60
-omarchy-light-control-hue set light <light id> --color ff8800
-omarchy-light-control-hue scene <scene id> --brightness 50
-omarchy-light-control-hue identify light <light id>
-omarchy-light-control-hue all-off
+hue=~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue/helper/main.py
+python3 $hue discover
+python3 $hue watch                        # JSON state stream; requests on stdin
+python3 $hue set group <grouped_light id> --on true --brightness 60
+python3 $hue set light <light id> --color ff8800
+python3 $hue scene <scene id> --brightness 50
+python3 $hue identify light <light id>
+python3 $hue all-off
 ```
 
 ## Development
 
+| Path | Purpose |
+|---|---|
+| `shell/Service.qml` | Runs the helper, holds the home state, queues commands |
+| `shell/Panel.qml`, `shell/*Row.qml`, `shell/LightModes.qml` | Bar popup and its rows |
+| `shell/BarWidget.qml` | Bar icon and IPC target |
+| `shell/Model.js` | Panel logic and English/German strings |
+| `helper/main.py` | Command line and the `watch` stream protocol |
+| `helper/hue_bridge.py` | HTTPS, pairing, event stream, discovery |
+| `helper/hue_model.py` | Raw CLIP v2 resources → rooms, scenes, lights |
+| `helper/hue_color.py` | Color conversion (xy, mirek, RGB) |
+| `tests/` | Unit tests and manifest check |
+
+Run the checks (Node 22+, Python 3, jq):
+
 ```bash
-cargo test && cargo clippy --all-targets
-node tests/model.test.js
 bash tests/check-manifest.sh
-omarchy plugin validate .
+node tests/model.test.js
+python3 -B -m unittest discover -s tests
 ```
 
-A development checkout uses `target/release/omarchy-light-control-hue` when no
-installed helper exists. After changing QML files, restart the shell with
-`omarchy-restart-shell`.
+Link a checkout into Omarchy:
+
+```bash
+ln -s "$PWD" ~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue
+omarchy-shell shell rescanPlugins
+omarchy plugin enable io.github.mahype.omarchy-light-control-hue
+```
+
+Omarchy's file watcher does not follow symlinks, so run
+`omarchy restart shell` after changing code.
 
 ## Roadmap
 
