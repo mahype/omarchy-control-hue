@@ -88,11 +88,12 @@ Panel {
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar { id: scrollBar; policy: ScrollBar.AsNeeded }
 
         Column {
           id: column
-          width: panelFlick.width
+          // Keep the switches clear of the scrollbar when the list scrolls.
+          width: panelFlick.width - (panelFlick.interactive ? scrollBar.width + Style.space(8) : 0)
           spacing: Style.space(12)
 
           // ---------- Header: title · all on/off ----------
