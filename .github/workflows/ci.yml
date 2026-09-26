@@ -18,20 +18,14 @@ jobs:
         with:
           node-version: 22
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Manifest
         run: bash tests/check-manifest.sh
 
-      - name: Unit tests (panel logic, JavaScript)
-        run: node tests/model.test.js
+      - name: Unit tests (JavaScript)
+        run: node --test tests/
 
-      - name: Unit tests (bridge helper, Python)
-        run: python3 -B -m unittest discover -s tests -v
+      - name: Check certificate bundle
+        run: cmp certs/hue-ca-bundle.pem <(cat certs/hue-root-bridge.pem certs/hue-root-ca-01.pem)
 
       - name: Syntax
-        run: |
-          python3 -m py_compile helper/*.py tests/*.py
-          bash -n tests/check-manifest.sh
+        run: bash -n tests/check-manifest.sh

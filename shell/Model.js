@@ -1,10 +1,9 @@
 // Pure parsing, state and localization helpers. I/O belongs in Service.qml.
-.pragma library
 
 var STRINGS = {
   en: {
-    title: "Hue", missing: "Python 3 is not available",
-    missingHint: "The Hue helper needs python3 (part of every Omarchy install). The widget reconnects automatically.",
+    title: "Hue", missing: "Required tools are missing",
+    missingHint: "The plugin needs curl, openssl and secret-tool, which ship with Omarchy.",
     connecting: "Connecting to the Hue bridge…", unconfigured: "No Hue bridge selected",
     unpaired: "The Hue bridge is not paired yet", unauthorized: "The Hue bridge no longer accepts this computer",
     unreachable: "Hue bridge unreachable", error: "Hue needs attention",
@@ -15,7 +14,7 @@ var STRINGS = {
     connection: "CONNECTION", bridge: "Bridge", findBridge: "Find Hue bridge", searching: "Searching…",
     noBridges: "No Hue bridge found. Enter its IP address instead.", select: "Select",
     manualHost: "IP address", connect: "Connect", pair: "Pair",
-    pressLink: "Press the round link button on the Hue bridge now…",
+    pressLink: "Press the round link button on the Hue bridge now…", secondsLeft: "%1 seconds left", cancel: "Cancel",
     pairHint: "Press Pair, then the round button on top of the bridge within 30 seconds.",
     pairFailed: "The link button was not pressed in time.", forget: "Disconnect bridge",
     unreachableSince: "Unreachable", offline: "offline", commandFailed: "Hue command failed",
@@ -24,8 +23,8 @@ var STRINGS = {
     all: "All lights"
   },
   de: {
-    title: "Hue", missing: "Python 3 ist nicht verfügbar",
-    missingHint: "Der Hue-Helfer braucht python3 (in jeder Omarchy-Installation enthalten). Das Widget verbindet sich dann automatisch.",
+    title: "Hue", missing: "Benötigte Programme fehlen",
+    missingHint: "Das Plugin braucht curl, openssl und secret-tool, die mit Omarchy geliefert werden.",
     connecting: "Verbinde mit der Hue Bridge…", unconfigured: "Keine Hue Bridge ausgewählt",
     unpaired: "Die Hue Bridge ist noch nicht gekoppelt", unauthorized: "Die Hue Bridge akzeptiert diesen Rechner nicht mehr",
     unreachable: "Hue Bridge nicht erreichbar", error: "Hue braucht Aufmerksamkeit",
@@ -36,7 +35,7 @@ var STRINGS = {
     connection: "VERBINDUNG", bridge: "Bridge", findBridge: "Hue Bridge suchen", searching: "Suche läuft…",
     noBridges: "Keine Hue Bridge gefunden. Gib stattdessen ihre IP-Adresse ein.", select: "Auswählen",
     manualHost: "IP-Adresse", connect: "Verbinden", pair: "Koppeln",
-    pressLink: "Drück jetzt den runden Link-Button auf der Hue Bridge…",
+    pressLink: "Drück jetzt den runden Link-Button auf der Hue Bridge…", secondsLeft: "Noch %1 Sekunden", cancel: "Abbrechen",
     pairHint: "Klick auf Koppeln und drück dann innerhalb von 30 Sekunden den runden Knopf oben auf der Bridge.",
     pairFailed: "Der Link-Button wurde nicht rechtzeitig gedrückt.", forget: "Bridge trennen",
     unreachableSince: "Nicht erreichbar", offline: "offline", commandFailed: "Hue-Befehl fehlgeschlagen",
@@ -230,4 +229,13 @@ function patchHome(home, kind, id, change) {
   next.lightsOn = next.lights.filter(function(light) { return light.on && !light.plug }).length
   next.anyOn = next.lights.some(function(light) { return light.on })
   return next
+}
+
+if (typeof module !== "undefined") module.exports = {
+  STRINGS: STRINGS, strings: strings, TABS: TABS, COLOR_PRESETS: COLOR_PRESETS, hueDistance: hueDistance,
+  parseLine: parseLine, emptyHome: emptyHome, lightById: lightById, lightsOf: lightsOf,
+  groupsOfKind: groupsOfKind, plugs: plugs, tabsFor: tabsFor, initialTab: initialTab,
+  kelvin: kelvin, mirek: mirek, kelvinRange: kelvinRange, sceneName: sceneName, subtitle: subtitle,
+  summary: summary, needsAttention: needsAttention, needsSetup: needsSetup, tooltip: tooltip,
+  compactError: compactError, parseJson: parseJson, patchHome: patchHome
 }

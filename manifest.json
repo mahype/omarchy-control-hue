@@ -6,7 +6,7 @@
   "author": "Sven Wagener",
   "license": "MIT",
   "homepage": "https://github.com/mahype/omarchy-light-control-hue",
-  "description": "Control Philips Hue lights from the Omarchy bar: rooms, zones, scenes, colors, color temperature, single lamps and smart plugs, with live updates. Talks to the Hue bridge on your local network; no cloud, nothing to build or install.",
+  "description": "Control Philips Hue lights from the Omarchy bar: rooms, zones, scenes, colors, color temperature, single lamps and smart plugs, with live updates. Talks to the Hue bridge on your local network with the tools Omarchy ships; nothing to build or install.",
   "kinds": [
     "service",
     "bar-widget"

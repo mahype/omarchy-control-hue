@@ -24,6 +24,7 @@ Panel {
   readonly property bool installed: service ? service.installed : true
   readonly property string connectionState: service ? service.state : ""
   readonly property bool setupBusy: service ? service.setupBusy : false
+  readonly property bool pairing: service ? service.pairing === true : false
   readonly property var rooms: Model.groupsOfKind(home, "room")
   readonly property var zones: setting("showZones", true) === true ? Model.groupsOfKind(home, "zone") : []
   readonly property var plugs: setting("showPlugs", true) === true ? Model.plugs(home) : []
@@ -303,20 +304,83 @@ Panel {
               // Pairing (bridge selected but no valid key).
               HintText {
                 bar: root.bar
-                visible: ["unpaired", "unauthorized"].indexOf(root.connectionState) >= 0
+                visible: ["unpaired", "unauthorized"].indexOf(root.connectionState) >= 0 && !root.pairing
                 width: parent.width
                 text: root.strings.pairHint
               }
               Button {
-                visible: ["unpaired", "unauthorized"].indexOf(root.connectionState) >= 0
+                visible: ["unpaired", "unauthorized"].indexOf(root.connectionState) >= 0 && !root.pairing
                 width: parent.width
-                text: root.service && root.service.pairing ? root.strings.pressLink : root.strings.pair
+                text: root.strings.pair
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 bordered: true
                 enabled: !root.setupBusy
                 onClicked: root.service.pair()
+              }
+
+              // While waiting for the link button: a plain notice, not a control.
+              Item {
+                visible: root.pairing
+                width: parent.width
+                implicitHeight: Math.max(pairNotice.implicitHeight, cancelPairing.implicitHeight)
+
+                Text {
+                  id: linkGlyph
+                  textFormat: Text.PlainText
+                  text: String.fromCodePoint(0xF0337)  // link-variant
+                  color: root.bar.foreground
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.title
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+
+                  SequentialAnimation on opacity {
+                    running: root.pairing
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1.0; to: 0.3; duration: 800 }
+                    NumberAnimation { from: 0.3; to: 1.0; duration: 800 }
+                  }
+                }
+
+                Column {
+                  id: pairNotice
+                  anchors.left: linkGlyph.right
+                  anchors.leftMargin: Style.space(10)
+                  anchors.right: cancelPairing.left
+                  anchors.rightMargin: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
+
+                  Text {
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    text: root.strings.pressLink
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    wrapMode: Text.WordWrap
+                  }
+
+                  HintText {
+                    bar: root.bar
+                    width: parent.width
+                    text: root.strings.secondsLeft.replace("%1", String(root.service ? root.service.pairingSecondsLeft : 0))
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Button {
+                  id: cancelPairing
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.strings.cancel
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  fontSize: Style.font.bodySmall
+                  onClicked: root.service.cancelPairing()
+                }
               }
 
               // Choosing a bridge.

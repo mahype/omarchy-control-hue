@@ -1,12 +1,8 @@
-// Run with: node tests/model.test.js
+// Run with: node --test tests/
 const assert = require("assert")
-const fs = require("fs")
-const path = require("path")
-const vm = require("vm")
+const test = require("node:test")
 
-const source = fs.readFileSync(path.join(__dirname, "..", "shell", "Model.js"), "utf8").replace(".pragma library", "")
-const Model = {}
-vm.runInNewContext(source + "\nObject.assign(exports, { strings, TABS, parseLine, lightsOf, groupsOfKind, plugs, tabsFor, initialTab, kelvin, mirek, kelvinRange, subtitle, hueDistance, summary, needsAttention, patchHome, compactError })", { exports: Model })
+const Model = require("../shell/Model.js")
 
 const home = {
   groups: [
@@ -22,13 +18,10 @@ const home = {
   anyOn: true, lightsOn: 1
 }
 
-let tests = 0
-function test(name, fn) { fn(); tests++ }
-
 test("tabs keep scene, color, temperature order and skip unsupported ones", () => {
-  assert.deepStrictEqual(Array.from(Model.tabsFor(home.groups[0], true)), ["scene", "color", "temperature"])
-  assert.deepStrictEqual(Array.from(Model.tabsFor(home.groups[1], true)), ["temperature"])
-  assert.deepStrictEqual(Array.from(Model.tabsFor({ color: true, temperature: true, scenes: [{}] }, false)), ["color", "temperature"])
+  assert.deepStrictEqual((Model.tabsFor(home.groups[0], true)), ["scene", "color", "temperature"])
+  assert.deepStrictEqual((Model.tabsFor(home.groups[1], true)), ["temperature"])
+  assert.deepStrictEqual((Model.tabsFor({ color: true, temperature: true, scenes: [{}] }, false)), ["color", "temperature"])
 })
 
 test("initial tab follows the user's choice, then the current mode", () => {
@@ -96,4 +89,3 @@ test("summaries and attention", () => {
   assert.strictEqual(Model.compactError("a\nfinal problem\n", "x"), "final problem")
 })
 
-console.log(`${tests} tests passed`)

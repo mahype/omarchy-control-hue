@@ -1,10 +1,18 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "HueBridge.js" as Hue
+import "HueHome.js" as HueHome
 import "Model.js" as Model
 
-// Shared by every monitor. Owns the single `omarchy-light-control-hue watch` process, which
-// streams the home state on stdout and takes light commands on stdin.
+// Owner of all Hue state. Mounted once per session; the bar widget and the
+// panel reach it through `bar.shell.serviceFor(...)` and call only the action
+// functions below.
+//
+// Everything runs on tools Omarchy already ships: curl for the bridge API and
+// its event stream (verified against the bundled Hue root CAs, with the bridge
+// ID as TLS name), openssl to read the ID of a bridge entered by address,
+// secret-tool for the bridge key and avahi-browse for discovery.
 Item {
   id: root
 
@@ -12,105 +20,245 @@ Item {
   property var shell: null
   property var manifest: null
 
+  readonly property string secretService: "io.github.mahype.omarchy-light-control-hue"
+  readonly property string deviceType: "omarchy-light-control-hue#desktop"
+  readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy-light-control-hue"
+  readonly property string configPath: configDir + "/config.json"
+  readonly property string caFile: localPath("../certs/hue-ca-bundle.pem")
+  readonly property var strings: Model.strings(Qt.locale().name)
+
+  // ---- State the panel reads ----------------------------------------------------
+
+  // { state, bridge, home } — state: unconfigured, unpaired, connecting, ready,
+  // unreachable or unauthorized.
   property var doc: null
   property var home: Model.emptyHome()
-  property bool installed: true
-  property string streamError: ""
-  property string lastError: ""
+  readonly property bool installed: true
+  property string error: ""
   property string statusMessage: ""
   property var bridges: []
   property bool bridgesLoaded: false
-  property string setupOperation: ""
+  property bool discovering: false
+  property var pairingBridge: null
+  property int pairingSecondsLeft: 0
+  property bool identifying: false
 
   readonly property string state: doc ? String(doc.state || "") : ""
   readonly property bool ready: state === "ready"
-  readonly property var bridge: doc && doc.bridge ? doc.bridge : null
-  readonly property string error: lastError || streamError
-  readonly property bool setupBusy: setupProcess.running
-  readonly property bool pairing: setupProcess.running && setupOperation === "pair"
-  readonly property var strings: Model.strings(Qt.locale().name)
+  readonly property var bridge: config.bridge
+  readonly property bool pairing: pairingBridge !== null
+  readonly property bool setupBusy: discovering || pairing || identifying || secretStore.running
 
-  // The helper ships with the plugin; Python is part of every Omarchy install.
-  readonly property string helperScript: {
-    var url = String(Qt.resolvedUrl("../helper/main.py"))
-    return url.indexOf("file://") === 0 ? decodeURIComponent(url.slice(7)) : url
+  property var config: ({ version: 1, bridge: null })
+  // Credentials stay inside the service; they are never rendered or logged.
+  property var credentials: null
+
+  // Raw CLIP v2 resources, updated in place from the event stream.
+  property var cache: HueHome.createCache()
+  property int retryDelay: 1000
+
+  function localPath(relative) {
+    return decodeURIComponent(String(Qt.resolvedUrl(relative)).replace(/^file:\/\//, ""))
   }
 
-  function helperCommand(args) {
-    // -B keeps the plugin checkout free of __pycache__; env exits 127 without python3.
-    return ["env", "python3", "-B", "-u", helperScript].concat(args)
+  function errorText(code) {
+    if (code === "unreachable") return strings.unreachable
+    if (code === "unauthorized") return strings.unauthorized
+    return strings.commandFailed
   }
 
-  // ---- stream ------------------------------------------------------------
+  function bridgeInfo() {
+    if (!bridge) return null
+    var name = HueHome.bridgeName(cache)
+    return { id: bridge.id, host: bridge.host, name: name || bridge.name }
+  }
 
-  property int nextRequest: 1
+  function setState(next) {
+    if (next !== "ready") home = Model.emptyHome()
+    doc = { state: next, bridge: bridgeInfo(), home: next === "ready" ? home : null }
+  }
+
+  function publish() {
+    home = HueHome.home(cache)
+    doc = { state: "ready", bridge: bridgeInfo(), home: home }
+  }
+
+  // ---- Settings -------------------------------------------------------------------
+
+  function normalizeConfig(raw) {
+    var value = raw && typeof raw === "object" ? raw.bridge : null
+    var id = Hue.normalizeBridgeId(value && value.id)
+    var host = String(value && value.host || "").trim()
+    return {
+      version: 1,
+      bridge: id && Hue.isHost(host) ? { id: id, host: host, name: String(value.name || "Hue Bridge") } : null
+    }
+  }
+
+  function saveConfig(next) {
+    var normalized = normalizeConfig(next)
+    configFile.setText(JSON.stringify(normalized, null, 2) + "\n")
+    applyConfig(normalized)
+  }
+
+  function applyConfig(next) {
+    var before = config.bridge ? config.bridge.id + "@" + config.bridge.host : ""
+    var after = next.bridge ? next.bridge.id + "@" + next.bridge.host : ""
+    config = next
+    if (before === after && doc) return
+    disconnect()
+    if (!next.bridge) setState("unconfigured")
+    else loadCredentials()
+  }
+
+  // ---- Bridge requests --------------------------------------------------------------
+
+  property var queue: []
+  property var current: null
+
+  // One curl at a time; bridges rate-limit and a queue keeps commands in order.
+  function request(method, path, body, callback, target) {
+    var text = Hue.curlConfig({
+      bridge: target || bridge, method: method, path: path, body: body,
+      key: target ? "" : (credentials ? credentials.applicationKey : ""), caFile: caFile
+    })
+    if (!text) { callback({ status: 0, body: null }); return }
+    queue = queue.concat([{ config: text, callback: callback }])
+    pump()
+  }
+
+  function clip(method, path, body, callback) {
+    request(method, path, body, function(response) { callback(Hue.parseClip(response)) })
+  }
+
+  function pump() {
+    if (http.running || queue.length === 0) return
+    current = queue[0]
+    queue = queue.slice(1)
+    http.stdinEnabled = true
+    http.running = true
+  }
+
+  // ---- Connection -----------------------------------------------------------------
+
+  function loadCredentials() {
+    credentials = null
+    if (!bridge) return
+    secretLookup.command = ["secret-tool", "lookup", "service", secretService, "bridge", bridge.id]
+    secretLookup.running = true
+  }
+
+  function disconnect() {
+    retryTimer.stop()
+    resyncTimer.stop()
+    publishTimer.stop()
+    credentials = null
+    stream.running = false
+    cache = HueHome.createCache()
+  }
+
+  function connect() {
+    if (!bridge || !credentials) return
+    if (!ready) setState("connecting")
+    loadResources(true)
+  }
+
+  function loadResources(startStream) {
+    clip("GET", "/clip/v2/resource", undefined, function(result) {
+      if (!credentials) return
+      if (!result.ok) {
+        stream.running = false
+        if (result.error === "unauthorized") {
+          setState("unauthorized")
+          return
+        }
+        setState("unreachable")
+        error = errorText(result.error)
+        retryTimer.interval = retryDelay
+        retryDelay = Math.min(retryDelay * 2, 30000)
+        retryTimer.restart()
+        return
+      }
+      if (!ready) error = ""
+      retryDelay = 1000
+      HueHome.replace(cache, result.data)
+      publish()
+      resyncTimer.restart()
+      if (startStream && !stream.running) openStream()
+    })
+  }
+
+  // ---- Event stream -------------------------------------------------------------------
+
+  function openStream() {
+    var text = Hue.curlConfig({
+      bridge: bridge, method: "GET", path: "/eventstream/clip/v2",
+      key: credentials ? credentials.applicationKey : "", caFile: caFile, timeout: 86400
+    })
+    if (!text) return
+    // Without this header the bridge answers once and closes instead of
+    // streaming. An idle stream is dropped after five minutes and reopened.
+    stream.config = text + "header = \"accept: text/event-stream\"\n"
+      + "speed-limit = 1\nspeed-time = 300\n"
+    stream.stdinEnabled = true
+    stream.running = true
+  }
+
+  // The bridge sends each event batch as one `data:` line. SplitParser drops
+  // the blank lines that end SSE events, so every data line is handled on its own.
+  function streamLine(line) {
+    if (line.indexOf("data:") !== 0) return
+    var batch = HueHome.parseEventData(line.slice(5))
+    if (!batch) return
+    var applied = HueHome.apply(cache, batch)
+    if (applied === HueHome.NEEDS_RESYNC) loadResources(false)
+    else if (applied === HueHome.CHANGED && !publishTimer.running) publishTimer.start()
+  }
+
+  // ---- Controls ------------------------------------------------------------------------
+
   // One request in flight per control; newer values replace queued ones so a
   // dragged slider never builds up a backlog.
   property var inflight: ({})
-  property var queued: ({})
+  property var pending: ({})
 
-  function take(line) {
-    var message = Model.parseLine(line)
-    if (!message) return
-    installed = true
-    if (message.type === "result") {
-      finish(message)
-      return
+  function send(key, job) {
+    if (!ready) return false
+    if (inflight[key]) {
+      var queued = Object.assign({}, pending)
+      queued[key] = job
+      pending = queued
+      return true
     }
-    streamError = ""
-    doc = message
-    if (message.state === "ready" && message.home) home = message.home
-    else if (message.state !== "ready") home = Model.emptyHome()
-  }
-
-  function finish(result) {
-    var keys = Object.keys(inflight)
-    for (var i = 0; i < keys.length; i++) {
-      if (inflight[keys[i]] !== result.req) continue
-      var copy = Object.assign({}, inflight)
-      delete copy[keys[i]]
-      inflight = copy
-      if (queued[keys[i]]) {
-        var request = queued[keys[i]]
-        var rest = Object.assign({}, queued)
-        delete rest[keys[i]]
-        queued = rest
-        dispatch(keys[i], request)
+    var busy = Object.assign({}, inflight)
+    busy[key] = true
+    inflight = busy
+    clip("PUT", job.path, job.body, function(result) {
+      var done = Object.assign({}, inflight)
+      delete done[key]
+      inflight = done
+      error = result.ok ? "" : errorText(result.error)
+      var next = pending[key]
+      if (next) {
+        var rest = Object.assign({}, pending)
+        delete rest[key]
+        pending = rest
+        send(key, next)
       }
-      break
-    }
-    if (result.ok === false) lastError = Model.compactError(result.error, strings.commandFailed)
-    else lastError = ""
-  }
-
-  function dispatch(key, request) {
-    if (!watcher.running) return false
-    var id = nextRequest++
-    var copy = Object.assign({}, inflight)
-    copy[key] = id
-    inflight = copy
-    watcher.write(JSON.stringify(Object.assign({ req: id }, request)) + "\n")
+    })
     return true
   }
 
-  function send(key, request) {
-    if (!ready) return false
-    if (inflight[key] !== undefined) {
-      var copy = Object.assign({}, queued)
-      copy[key] = request
-      queued = copy
-      return true
-    }
-    return dispatch(key, request)
+  function put(key, type, id, body) {
+    if (!body || !Hue.isUuid(id)) return false
+    return send(key, { path: "/clip/v2/resource/" + type + "/" + id, body: body })
   }
-
-  // ---- controls ----------------------------------------------------------
 
   function setGroup(groupedLightId, change) {
     if (!groupedLightId) return false
     home = Model.patchHome(home, "group", groupedLightId, change)
-    return send("group:" + groupedLightId + ":" + Object.keys(change).join(","),
-      Object.assign({ op: "set", target: "group", id: groupedLightId }, change))
+    return put("group:" + groupedLightId + ":" + Object.keys(change).join(","),
+      "grouped_light", groupedLightId, HueHome.stateBody(change))
   }
 
   // With a scene active the scene is re-recalled at the new brightness, which
@@ -118,27 +266,28 @@ Item {
   function dimGroup(group, brightness) {
     if (!group || !group.groupedLightId) return false
     if (!group.activeSceneId) return setGroup(group.groupedLightId, { brightness: brightness })
+    var level = HueHome.stateBody({ brightness: brightness })
+    if (!level) return false
     home = Model.patchHome(home, "group", group.groupedLightId, { brightness: brightness })
-    return send("group:" + group.groupedLightId + ":brightness",
-      { op: "scene", id: group.activeSceneId, brightness: brightness })
+    return put("group:" + group.groupedLightId + ":brightness", "scene", group.activeSceneId,
+      { recall: { action: "active", dimming: level.dimming } })
   }
 
   function setLight(lightId, change) {
     if (!lightId) return false
     home = Model.patchHome(home, "light", lightId, change)
-    return send("light:" + lightId + ":" + Object.keys(change).join(","),
-      Object.assign({ op: "set", target: "light", id: lightId }, change))
+    return put("light:" + lightId + ":" + Object.keys(change).join(","), "light", lightId, HueHome.stateBody(change))
   }
 
-  function recallScene(sceneId, brightness) {
-    var request = { op: "scene", id: sceneId }
-    if (brightness !== undefined && brightness !== null) request.brightness = brightness
-    return send("scene:" + sceneId, request)
+  function recallScene(sceneId) {
+    return put("scene:" + sceneId, "scene", sceneId, { recall: { action: "active" } })
   }
 
   function allOff() {
+    var target = home.homeGroupedLightId
+    if (!target) return false
     home = Model.patchHome(home, "all-off", "", {})
-    return send("all-off", { op: "all-off" })
+    return put("all", "grouped_light", target, { on: { on: false } })
   }
 
   function allOn() {
@@ -147,103 +296,263 @@ Item {
 
   // kind: "light" or "group" (a grouped light ID).
   function identify(kind, id) {
-    if (!id) return false
-    return send("identify:" + id, { op: "identify", target: kind, id: id })
+    return put("identify:" + id, kind === "group" ? "grouped_light" : "light", id, { alert: { action: "breathe" } })
   }
 
-  // ---- setup -------------------------------------------------------------
+  // ---- Discovery, selection and pairing ---------------------------------------------------
 
-  function runSetup(operation, args) {
-    if (!installed || setupProcess.running) return false
-    lastError = ""
-    statusMessage = operation === "pair" ? strings.pressLink
-      : operation === "discover" ? strings.searching : ""
-    setupOperation = operation
-    setupProcess.command = helperCommand(args)
-    setupProcess.running = true
+  function discover() {
+    if (discovering) return false
+    error = ""
+    statusMessage = strings.searching
+    discovering = true
+    bridges = []
+    bridgesLoaded = false
+    avahi.running = true
     return true
   }
 
-  function discover() { return runSetup("discover", ["discover"]) }
-  function useBridge(candidate) {
-    if (!candidate || !candidate.id || !candidate.host) return false
-    return runSetup("select", ["use", String(candidate.id), String(candidate.host), "--name", String(candidate.name || "Hue Bridge")])
+  function finishDiscovery(found) {
+    discovering = false
+    statusMessage = ""
+    bridges = found
+    bridgesLoaded = true
+    // Follow the selected bridge when DHCP gave it a new address.
+    for (var i = 0; bridge && i < found.length; i++) {
+      if (found[i].id === bridge.id && found[i].host !== bridge.host)
+        saveConfig({ bridge: { id: bridge.id, host: found[i].host, name: bridge.name } })
+    }
   }
+
+  function useBridge(candidate) {
+    if (!candidate || !Hue.normalizeBridgeId(candidate.id) || !Hue.isHost(candidate.host)) return false
+    error = ""
+    bridges = []
+    bridgesLoaded = false
+    saveConfig({ bridge: { id: candidate.id, host: candidate.host, name: candidate.name || "Hue Bridge" } })
+    return true
+  }
+
+  // A bridge entered by address: its ID is read from the certificate, which
+  // must chain to Signify's roots; everything after that is verified by ID.
   function connectHost(host) {
     var value = String(host || "").trim()
-    return value !== "" && runSetup("select", ["connect", value])
+    if (!Hue.isHost(value) || identifying) { error = strings.commandFailed; return false }
+    error = ""
+    identifying = true
+    certificate.host = value
+    certificate.command = ["openssl", "s_client", "-connect",
+      (value.indexOf(":") >= 0 ? "[" + value + "]" : value) + ":443",
+      "-CAfile", caFile, "-verify_return_error"]
+    certificate.running = true
+    return true
   }
-  function pair() { return runSetup("pair", ["pair", "--wait", "30"]) }
-  function forget() { return runSetup("forget", ["forget"]) }
 
-  function restartWatcher() {
-    inflight = ({})
-    queued = ({})
-    if (watcher.running) watcher.running = false
-    else restart.restart()
+  function pair() {
+    if (!bridge || pairing) return false
+    error = ""
+    pairingBridge = { id: bridge.id, host: bridge.host, name: bridge.name }
+    pairingSecondsLeft = 30
+    pairTimer.restart()
+    attemptPairing()
+    return true
+  }
+
+  function attemptPairing() {
+    var target = pairingBridge
+    if (!target) return
+    request("POST", "/api", { devicetype: deviceType, generateclientkey: true }, function(response) {
+      if (pairingBridge !== target) return
+      var result = Hue.parsePairResponse(response)
+      if (result.state === "paired") {
+        stopPairing()
+        storeCredentials(target, result.credentials)
+      } else if (result.state === "error") {
+        stopPairing()
+        error = errorText(result.error)
+      }
+      // "waiting": pairTimer tries again until the link button is pressed.
+    }, target)
+  }
+
+  function stopPairing() {
+    pairingBridge = null
+    pairTimer.stop()
+  }
+
+  function cancelPairing() {
+    stopPairing()
+    return true
+  }
+
+  function storeCredentials(target, value) {
+    secretStore.value = value
+    secretStore.command = ["secret-tool", "store", "--label", "Omarchy Light Control for Hue (" + target.id + ")",
+      "service", secretService, "bridge", target.id]
+    secretStore.stdinEnabled = true
+    secretStore.running = true
+  }
+
+  function forget() {
+    if (!bridge) return false
+    Quickshell.execDetached(["secret-tool", "clear", "service", secretService, "bridge", bridge.id])
+    saveConfig({ bridge: null })
+    return true
+  }
+
+  // ---- Plumbing -----------------------------------------------------------------------------
+
+  Process {
+    id: http
+    command: ["curl", "-K", "-"]
+    stdout: StdioCollector { id: httpOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onStarted: {
+      write(root.current.config)
+      stdinEnabled = false
+    }
+    onExited: {
+      var done = root.current
+      root.current = null
+      var response = Hue.parseCurlOutput(httpOut.text)
+      if (done) done.callback(response)
+      Qt.callLater(root.pump)
+    }
   }
 
   Process {
-    id: watcher
-    command: root.helperCommand(["watch"])
-    // stdin stays open for commands; closing it lets the helper exit with the shell.
-    stdinEnabled: true
-    stdout: SplitParser { onRead: function(line) { root.take(line) } }
-    stderr: SplitParser {
-      onRead: function(line) {
-        var message = Model.compactError(line, "")
-        if (message) root.streamError = message
+    id: stream
+    property string config: ""
+    command: ["curl", "-N", "-K", "-"]
+    stdout: SplitParser { onRead: function(line) { root.streamLine(line) } }
+    onStarted: {
+      write(config)
+      config = ""
+      stdinEnabled = false
+    }
+    // The bridge closes streams now and then; reload and reconnect.
+    onExited: if (root.ready && root.credentials) { retryTimer.interval = 1000; retryTimer.restart() }
+  }
+
+  Process {
+    id: avahi
+    command: ["timeout", "4", "avahi-browse", "-rpt", "_hue._tcp"]
+    stdout: StdioCollector { id: avahiOut; waitForEnd: true }
+    onExited: {
+      var found = Hue.parseAvahi(avahiOut.text)
+      if (found.length > 0) root.finishDiscovery(found)
+      else cloudDiscovery.running = true
+    }
+  }
+
+  Process {
+    id: cloudDiscovery
+    command: ["curl", "-sS", "--max-time", "8", Hue.DISCOVERY_URL]
+    stdout: StdioCollector { id: cloudOut; waitForEnd: true }
+    onExited: root.finishDiscovery(Hue.parseCloudDiscovery(cloudOut.text))
+  }
+
+  Process {
+    id: certificate
+    property string host: ""
+    stdout: StdioCollector { id: certificateOut; waitForEnd: true }
+    onExited: {
+      var id = HueHome.bridgeIdFromCertificate(certificateOut.text)
+      if (!id) {
+        root.identifying = false
+        root.error = root.strings.unreachable
+        return
       }
+      var target = { id: id, host: host }
+      root.request("GET", "/api/0/config", undefined, function(response) {
+        root.identifying = false
+        var body = response.body || {}
+        if (!response.status || Hue.normalizeBridgeId(body.bridgeid) !== id) {
+          root.error = root.strings.unreachable
+          return
+        }
+        root.useBridge({ id: id, host: target.host, name: String(body.name || "Hue Bridge") })
+      }, target)
+    }
+  }
+
+  Process {
+    id: secretStore
+    property var value: null
+    onStarted: {
+      write(JSON.stringify(value))
+      value = null
+      stdinEnabled = false
     }
     onExited: function(exitCode) {
-      root.inflight = ({})
-      root.queued = ({})
-      if (exitCode === 126 || exitCode === 127) {
-        root.installed = false
-        root.doc = null
-        root.home = Model.emptyHome()
-        root.streamError = ""
-      }
-      restart.interval = root.installed ? 1000 : 10000
-      restart.restart()
+      if (exitCode !== 0) { root.error = root.strings.commandFailed; return }
+      root.loadCredentials()
+    }
+  }
+
+  Process {
+    id: secretLookup
+    stdout: StdioCollector { id: secretOut; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.credentials = exitCode === 0 ? Hue.parseCredentials(secretOut.text) : null
+      if (root.credentials) root.connect()
+      else root.setState("unpaired")
     }
   }
 
   Timer {
-    id: restart
+    id: pairTimer
     interval: 1000
-    onTriggered: if (!watcher.running) watcher.running = true
-  }
-
-  Process {
-    id: setupProcess
-    command: []
-    stdout: StdioCollector { id: setupOutput; waitForEnd: true }
-    stderr: StdioCollector { id: setupError; waitForEnd: true }
-    onExited: function(exitCode) {
-      var operation = root.setupOperation
-      root.setupOperation = ""
-      root.statusMessage = ""
-      if (exitCode === 126 || exitCode === 127) {
-        root.installed = false
-        return
-      }
-      if (exitCode !== 0) {
-        root.lastError = operation === "pair" ? root.strings.pairFailed
-          : Model.compactError(setupError.text || setupOutput.text, root.strings.commandFailed)
-        return
-      }
-      if (operation === "discover") {
-        var parsed = Model.parseJson(setupOutput.text)
-        root.bridges = parsed.ok && Array.isArray(parsed.value) ? parsed.value : []
-        root.bridgesLoaded = true
-        return
-      }
-      root.bridges = []
-      root.bridgesLoaded = false
-      root.restartWatcher()
+    repeat: true
+    // Counts down every second for the panel; asks the bridge every other one.
+    onTriggered: {
+      root.pairingSecondsLeft -= 1
+      if (root.pairingSecondsLeft <= 0) {
+        root.stopPairing()
+        root.error = root.strings.pairFailed
+      } else if (root.pairingSecondsLeft % 2 === 0) root.attemptPairing()
     }
   }
 
-  Component.onCompleted: watcher.running = true
+  Timer {
+    id: retryTimer
+    onTriggered: if (root.credentials) root.loadResources(true)
+  }
+
+  // Coalesces bursts of events into one update of the panel.
+  Timer {
+    id: publishTimer
+    interval: 80
+    onTriggered: if (root.ready) root.publish()
+  }
+
+  // A periodic full reload corrects anything the stream may have missed.
+  Timer {
+    id: resyncTimer
+    interval: 300000
+    repeat: true
+    onTriggered: if (root.ready) root.loadResources(false)
+  }
+
+  // FileView does not create parent directories.
+  Process {
+    id: configDirProc
+    command: ["install", "-d", "-m", "700", root.configDir]
+    running: true
+    onExited: configFile.reload()
+  }
+
+  FileView {
+    id: configFile
+    path: root.configPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      var parsed = null
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = null }
+      root.applyConfig(root.normalizeConfig(parsed))
+    }
+    onLoadFailed: root.applyConfig(root.normalizeConfig(null))
+  }
 }

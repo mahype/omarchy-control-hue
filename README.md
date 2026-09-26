@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Omarchy 4](https://img.shields.io/badge/Omarchy-4-black.svg)](https://omarchy.org)
 [![Philips Hue local API](https://img.shields.io/badge/Philips%20Hue-local%20API%20v2-0065d3.svg)](https://developers.meethue.com/)
-[![Local control](https://img.shields.io/badge/control-local%20only-lightgrey.svg)](#privacy-and-security)
-[![Verified TLS](https://img.shields.io/badge/TLS-certificate%20verified-brightgreen.svg)](#privacy-and-security)
+[![Local control](https://img.shields.io/badge/control-local%20only-lightgrey.svg)](#what-it-stores-and-where-it-connects)
+[![Verified TLS](https://img.shields.io/badge/TLS-certificate%20verified-brightgreen.svg)](#what-it-stores-and-where-it-connects)
 [![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](#requirements)
 
 Control your Philips Hue lights from the Omarchy bar: rooms, zones, scenes,
@@ -55,13 +55,13 @@ brightness works with all of them:
 
 ## Requirements
 
-- Omarchy 4 or newer
+- Omarchy with the Quickshell-based `omarchy-shell`
 - A Philips Hue bridge (v2, square) on the same network
+- A Secret Service provider for the bridge key (GNOME Keyring is the Omarchy
+  default)
 
-Everything else is part of every Omarchy install: `python3` for the bridge
-helper, `avahi` for discovery and `libsecret` (`secret-tool`) with GNOME
-Keyring for the bridge key. There are no other runtime dependencies, and
-nothing is built, bundled as a binary or downloaded.
+Everything else ships with Omarchy: `curl`, `openssl`, `secret-tool` and
+`avahi-browse`. Nothing is built, bundled as a binary or downloaded.
 
 ## Installation
 
@@ -79,7 +79,7 @@ Then connect your bridge:
 
 To update later, run `omarchy plugin update io.github.mahype.omarchy-light-control-hue`.
 
-## Removal
+## Remove
 
 Click **Disconnect bridge** under *Connection* in the panel (this deletes the
 stored key), then:
@@ -93,24 +93,24 @@ The Hue bridge keeps a registration entry named
 `omarchy-light-control-hue#desktop`; remove it in the Hue app if you like.
 Your lights, rooms and scenes are not touched.
 
-## Privacy and security
+## What it stores and where it connects
 
-- **Local only.** All control traffic goes to your Hue bridge over HTTPS. The
-  only other address is `discovery.meethue.com`, and only when you search for
-  a bridge and none answers via mDNS.
-- **Verified TLS.** The bridge certificate must chain to one of Signify's two
-  published Hue root certificates (`helper/certs/`, from Signify's developer
-  documentation on
-  [using HTTPS](https://developers.meethue.com/develop/application-design-guidance/using-https/)
-  and [bridge certificates](https://developers.meethue.com/develop/application-design-guidance/hue-bridge-certificates/)),
-  and it must name the ID of the bridge you selected.
-- **Key in the keyring.** The bridge's application key is stored in the Secret
-  Service (service `io.github.mahype.omarchy-light-control-hue`), never in a
-  file. `~/.config/omarchy-light-control-hue/config.json` holds only the bridge
-  ID, address and name; the directory is created with mode 0700.
-- **External programs:** `python3` (the helper in `helper/`, standard library
-  only), `avahi-browse` (discovery) and `secret-tool` (keyring). All are called
-  with argument arrays, never through a shell.
+| What | Where |
+|---|---|
+| Bridge ID, address and name | `~/.config/omarchy-light-control-hue/config.json` (directory mode 0700) |
+| Hue application key and client key | Secret Service, `service=io.github.mahype.omarchy-light-control-hue`, `bridge=<bridge id>` |
+| Hue bridge (HTTPS 443) | your local network |
+| `discovery.meethue.com` | only when mDNS finds no bridge |
+
+- **Verified TLS.** Every request is checked against Signify's two published
+  Hue root certificates (`certs/`, see [certs/README.md](certs/README.md)) with
+  the bridge ID as TLS name; the address only resolves that name. A bridge
+  entered by address must present such a certificate before its ID is used.
+- **Keys stay out of sight.** curl reads each request, including the key, from
+  stdin (`curl -K -`), so it never appears in the process list, the config
+  file or logs.
+- **External programs:** `curl`, `openssl`, `secret-tool` and `avahi-browse`,
+  always called with argument arrays, never through a shell.
 - No installer, no services, no downloads. No sudo or pkexec is required.
 
 ## Keyboard and scripting
@@ -125,39 +125,24 @@ omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" co
 omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
 ```
 
-The helper also works on its own:
-
-```bash
-hue=~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue/helper/main.py
-python3 $hue discover
-python3 $hue watch                        # JSON state stream; requests on stdin
-python3 $hue set group <grouped_light id> --on true --brightness 60
-python3 $hue set light <light id> --color ff8800
-python3 $hue scene <scene id> --brightness 50
-python3 $hue identify light <light id>
-python3 $hue all-off
-```
-
 ## Development
 
 | Path | Purpose |
 |---|---|
-| `shell/Service.qml` | Runs the helper, holds the home state, queues commands |
+| `shell/Service.qml` | Owns config, credentials, the curl queue and the event stream |
+| `shell/HueBridge.js` | Hue bridge protocol shared with [Omarchy Light Sync for Hue](https://github.com/mahype/omarchy-lightsync); keep both copies identical |
+| `shell/HueHome.js` | Raw CLIP v2 resources → rooms, scenes, lights; color math |
+| `shell/Model.js` | Panel logic and English/German strings |
 | `shell/Panel.qml`, `shell/*Row.qml`, `shell/LightModes.qml` | Bar popup and its rows |
 | `shell/BarWidget.qml` | Bar icon and IPC target |
-| `shell/Model.js` | Panel logic and English/German strings |
-| `helper/main.py` | Command line and the `watch` stream protocol |
-| `helper/hue_bridge.py` | HTTPS, pairing, event stream, discovery |
-| `helper/hue_model.py` | Raw CLIP v2 resources → rooms, scenes, lights |
-| `helper/hue_color.py` | Color conversion (xy, mirek, RGB) |
+| `certs/` | Signify's Hue root certificates |
 | `tests/` | Unit tests and manifest check |
 
-Run the checks (Node 22+, Python 3, jq):
+Run the checks (Node 22+, jq):
 
 ```bash
 bash tests/check-manifest.sh
-node tests/model.test.js
-python3 -B -m unittest discover -s tests
+node --test tests/
 ```
 
 Link a checkout into Omarchy:
