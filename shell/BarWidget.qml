@@ -79,7 +79,6 @@ BarWidget {
     bar: root.bar
     // nf-md-lightbulb / nf-md-lightbulb_outline
     text: root.anyOn ? "󰌵" : "󰌶"
-    active: root.opened || root.anyOn
     tooltipText: Model.tooltip(root.doc, root.installed, root.service ? root.service.error : "", root.strings)
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
