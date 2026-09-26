@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.mahype.omarchy-light-control-hue",
-  "name": "Omarchy Light Control for Hue",
+  "id": "io.github.mahype.omarchy-control-hue",
+  "name": "Omarchy Control for Hue",
   "version": "0.1.0",
   "author": "Sven Wagener",
   "license": "MIT",
-  "homepage": "https://github.com/mahype/omarchy-light-control-hue",
+  "homepage": "https://github.com/mahype/omarchy-control-hue",
   "description": "Control Philips Hue lights from the Omarchy bar: rooms, zones, scenes, colors, color temperature, single lamps and smart plugs, with live updates. Talks to the Hue bridge on your local network with the tools Omarchy ships; nothing to build or install.",
   "kinds": [
     "service",
@@ -16,7 +16,7 @@
     "barWidget": "shell/BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Hue",
+    "displayName": "Control for Hue",
     "description": "Click to open the panel with rooms, scenes, colors and plugs.",
     "category": "Home",
     "aliases": [

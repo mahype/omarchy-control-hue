@@ -9,7 +9,7 @@ import "Model.js" as Model
 // service; this file only decides what to show and forwards actions.
 Panel {
   id: root
-  moduleName: "io.github.mahype.omarchy-light-control-hue"
+  moduleName: "io.github.mahype.omarchy-control-hue"
   ipcTarget: moduleName
   manageIpc: false
 

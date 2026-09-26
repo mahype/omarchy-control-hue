@@ -20,9 +20,9 @@ Item {
   property var shell: null
   property var manifest: null
 
-  readonly property string secretService: "io.github.mahype.omarchy-light-control-hue"
-  readonly property string deviceType: "omarchy-light-control-hue#desktop"
-  readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy-light-control-hue"
+  readonly property string secretService: "io.github.mahype.omarchy-control-hue"
+  readonly property string deviceType: "omarchy-control-hue#desktop"
+  readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy-control-hue"
   readonly property string configPath: configDir + "/config.json"
   readonly property string caFile: localPath("../certs/hue-ca-bundle.pem")
   readonly property var strings: Model.strings(Qt.locale().name)
@@ -419,7 +419,7 @@ Item {
 
   function storeCredentials(target, value) {
     secretStore.value = value
-    secretStore.command = ["secret-tool", "store", "--label", "Omarchy Light Control for Hue (" + target.id + ")",
+    secretStore.command = ["secret-tool", "store", "--label", "Omarchy Control for Hue (" + target.id + ")",
       "service", secretService, "bridge", target.id]
     secretStore.stdinEnabled = true
     secretStore.running = true

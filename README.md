@@ -1,7 +1,7 @@
-# Omarchy Light Control for Hue
+# Omarchy Control for Hue
 
-[![CI](https://github.com/mahype/omarchy-light-control-hue/actions/workflows/ci.yml/badge.svg)](https://github.com/mahype/omarchy-light-control-hue/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmahype%2Fomarchy-light-control-hue%2Fmain%2Fmanifest.json&query=%24.version&label=version&color=blue)](manifest.json)
+[![CI](https://github.com/mahype/omarchy-control-hue/actions/workflows/ci.yml/badge.svg)](https://github.com/mahype/omarchy-control-hue/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmahype%2Fomarchy-control-hue%2Fmain%2Fmanifest.json&query=%24.version&label=version&color=blue)](manifest.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Omarchy 4](https://img.shields.io/badge/Omarchy-4-black.svg)](https://omarchy.org)
 [![Philips Hue local API](https://img.shields.io/badge/Philips%20Hue-local%20API%20v2-0065d3.svg)](https://developers.meethue.com/)
@@ -15,7 +15,7 @@ the Hue bridge on your local network — no cloud account, no polling. Changes
 made elsewhere (Hue app, wall switches, automations) show up instantly through
 the bridge's event stream.
 
-![Omarchy Light Control for Hue](preview.png)
+![Omarchy Control for Hue](preview.png)
 
 ## Features
 
@@ -66,7 +66,7 @@ Everything else ships with Omarchy: `curl`, `openssl`, `secret-tool` and
 ## Installation
 
 ```bash
-omarchy plugin add https://github.com/mahype/omarchy-light-control-hue.git --enable
+omarchy plugin add https://github.com/mahype/omarchy-control-hue.git --enable
 ```
 
 Then connect your bridge:
@@ -77,7 +77,7 @@ Then connect your bridge:
 3. Click **Pair** and press the round link button on top of the bridge within
    30 seconds.
 
-To update later, run `omarchy plugin update io.github.mahype.omarchy-light-control-hue`.
+To update later, run `omarchy plugin update io.github.mahype.omarchy-control-hue`.
 
 ## Remove
 
@@ -85,20 +85,20 @@ Click **Disconnect bridge** under *Connection* in the panel (this deletes the
 stored key), then:
 
 ```bash
-omarchy plugin remove io.github.mahype.omarchy-light-control-hue
-rm -rf ~/.config/omarchy-light-control-hue   # bridge selection
+omarchy plugin remove io.github.mahype.omarchy-control-hue
+rm -rf ~/.config/omarchy-control-hue   # bridge selection
 ```
 
 The Hue bridge keeps a registration entry named
-`omarchy-light-control-hue#desktop`; remove it in the Hue app if you like.
+`omarchy-control-hue#desktop`; remove it in the Hue app if you like.
 Your lights, rooms and scenes are not touched.
 
 ## What it stores and where it connects
 
 | What | Where |
 |---|---|
-| Bridge ID, address and name | `~/.config/omarchy-light-control-hue/config.json` (directory mode 0700) |
-| Hue application key and client key | Secret Service, `service=io.github.mahype.omarchy-light-control-hue`, `bridge=<bridge id>` |
+| Bridge ID, address and name | `~/.config/omarchy-control-hue/config.json` (directory mode 0700) |
+| Hue application key and client key | Secret Service, `service=io.github.mahype.omarchy-control-hue`, `bridge=<bridge id>` |
 | Hue bridge (HTTPS 443) | your local network |
 | `discovery.meethue.com` | only when mDNS finds no bridge |
 
@@ -120,9 +120,9 @@ zone unfolded; its second argument picks the tab (`scene`, `color`,
 `temperature`, or `""` for the current one):
 
 ```bash
-omarchy-shell io.github.mahype.omarchy-light-control-hue toggle
-omarchy-shell io.github.mahype.omarchy-light-control-hue expand "Living room" color
-omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
+omarchy-shell io.github.mahype.omarchy-control-hue toggle
+omarchy-shell io.github.mahype.omarchy-control-hue expand "Living room" color
+omarchy-shell io.github.mahype.omarchy-control-hue allOff
 ```
 
 ## Development
@@ -130,7 +130,7 @@ omarchy-shell io.github.mahype.omarchy-light-control-hue allOff
 | Path | Purpose |
 |---|---|
 | `shell/Service.qml` | Owns config, credentials, the curl queue and the event stream |
-| `shell/HueBridge.js` | Hue bridge protocol shared with [Omarchy Light Sync for Hue](https://github.com/mahype/omarchy-lightsync); keep both copies identical |
+| `shell/HueBridge.js` | Hue bridge protocol shared with [Omarchy Light Sync for Hue](https://github.com/mahype/omarchy-light-sync-hue); keep both copies identical |
 | `shell/HueHome.js` | Raw CLIP v2 resources → rooms, scenes, lights; color math |
 | `shell/Model.js` | Panel logic and English/German strings |
 | `shell/Panel.qml`, `shell/*Row.qml`, `shell/LightModes.qml` | Bar popup and its rows |
@@ -148,9 +148,9 @@ node --test tests/*.test.js
 Link a checkout into Omarchy:
 
 ```bash
-ln -s "$PWD" ~/.config/omarchy/plugins/io.github.mahype.omarchy-light-control-hue
+ln -s "$PWD" ~/.config/omarchy/plugins/io.github.mahype.omarchy-control-hue
 omarchy-shell shell rescanPlugins
-omarchy plugin enable io.github.mahype.omarchy-light-control-hue
+omarchy plugin enable io.github.mahype.omarchy-control-hue
 ```
 
 Omarchy's file watcher does not follow symlinks, so run
