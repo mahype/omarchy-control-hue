@@ -21,7 +21,7 @@ Column {
   property string viewMode: ""
   property bool sceneListOpen: false
 
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
   readonly property var tabs: target ? Model.tabsFor(target, isGroup) : []
   readonly property string shownMode: target ? Model.initialTab(target, isGroup, viewMode) : ""
   readonly property var scenes: target && target.scenes ? target.scenes : []

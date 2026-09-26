@@ -46,9 +46,9 @@ var STRINGS = {
   }
 }
 
-// German by default, like the other Omarchy smart-home plugins; pass "en" for English.
+// English by default; German when the system locale is German (Qt.locale().name).
 function strings(localeName) {
-  return String(localeName || "de").toLowerCase().indexOf("en") === 0 ? STRINGS.en : STRINGS.de
+  return String(localeName || "").toLowerCase().indexOf("de") === 0 ? STRINGS.de : STRINGS.en
 }
 
 // Scene first, then color, temperature last — in order of how often they are used.

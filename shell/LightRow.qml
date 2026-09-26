@@ -15,7 +15,7 @@ Column {
   property bool showRoom: false
   signal expandToggled()
 
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
   readonly property bool expandable: light !== null && !light.plug && light.reachable !== false
     && (light.dimming || light.color || light.temperature)
 

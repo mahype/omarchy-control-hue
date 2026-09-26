@@ -46,7 +46,7 @@ test("temperature converts between mirek and Kelvin", () => {
 })
 
 test("subtitles name the scene, color or temperature", () => {
-  const de = Model.strings()
+  const de = Model.strings("de_DE")
   assert.strictEqual(Model.subtitle({ ...home.groups[0], dimming: true }, true, de), "40 % · Lesen")
   assert.strictEqual(Model.subtitle(home.groups[1], true, de), "aus")
   assert.strictEqual(Model.subtitle({ on: true, dimming: true, brightness: 80, mode: "temperature", mirek: 370 }, false, de), "80 % · 2700 K")
@@ -78,6 +78,12 @@ test("stream lines are validated", () => {
   assert.strictEqual(Model.parseLine("nope"), null)
   assert.strictEqual(Model.parseLine('{"state":"ready"}'), null)
   assert.strictEqual(Model.parseLine('{"type":"state","state":"ready"}').state, "ready")
+})
+
+test("English is the default, German follows a German locale", () => {
+  assert.strictEqual(Model.strings().off, "off")
+  assert.strictEqual(Model.strings("en_US").scene, "Scene")
+  assert.strictEqual(Model.strings("de_AT").scene, "Szene")
 })
 
 test("summaries and attention", () => {

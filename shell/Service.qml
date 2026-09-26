@@ -28,7 +28,7 @@ Item {
   readonly property string error: lastError || streamError
   readonly property bool setupBusy: setupProcess.running
   readonly property bool pairing: setupProcess.running && setupOperation === "pair"
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
 
   // A development checkout runs straight from `cargo build --release`.
   readonly property string bundledHelper: {

@@ -356,7 +356,7 @@ pub fn home(cache: &Cache) -> Home {
                 str_at(scene, "/group/rid")?.to_owned(),
                 Scene {
                     id: str_at(scene, "/id")?.to_owned(),
-                    name: str_at(scene, "/metadata/name").unwrap_or("Szene").to_owned(),
+                    name: str_at(scene, "/metadata/name").unwrap_or("Scene").to_owned(),
                     active: str_at(scene, "/status/active").is_some_and(|s| s != "inactive"),
                 },
             ))

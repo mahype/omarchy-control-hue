@@ -18,7 +18,7 @@ Column {
   // Only one lamp is expanded at a time.
   property string expandedLightId: ""
 
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
   readonly property var lights: group ? Model.lightsOf(home, group.lightIds) : []
 
   onExpandedChanged: if (!expanded) { modes.reset(); expandedLightId = "" }

@@ -15,7 +15,7 @@ BarWidget {
   readonly property bool installed: service ? service.installed : true
   readonly property bool anyOn: service && service.ready ? service.home.anyOn === true : false
   readonly property bool attention: Model.needsAttention(doc, installed)
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true : false

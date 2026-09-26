@@ -17,7 +17,7 @@ Panel {
   property var hostWidget: null
   property var service: null
   readonly property var barIdentity: hostWidget || root
-  readonly property var strings: Model.strings()
+  readonly property var strings: Model.strings(Qt.locale().name)
   readonly property var doc: service ? service.doc : null
   readonly property var home: service ? service.home : Model.emptyHome()
   readonly property bool ready: service ? service.ready : false
