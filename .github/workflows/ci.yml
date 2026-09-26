@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Manifest
+        run: bash tests/check-manifest.sh
+
+      - name: Unit tests (JavaScript)
+        run: node tests/model.test.js
+
+      - name: Unit tests and lints (Rust helper)
+        run: |
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Script syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n tests/check-manifest.sh

@@ -1,14 +1,33 @@
 # Omarchy Light Control for Hue
 
+[![CI](https://github.com/mahype/omarchy-light-control-hue/actions/workflows/ci.yml/badge.svg)](https://github.com/mahype/omarchy-light-control-hue/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmahype%2Fomarchy-light-control-hue%2Fmain%2Fmanifest.json&query=%24.version&label=version&color=blue)](manifest.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Omarchy 4](https://img.shields.io/badge/Omarchy-4-black.svg)](https://omarchy.org)
+[![Philips Hue local API](https://img.shields.io/badge/Philips%20Hue-local%20API%20v2-0065d3.svg)](https://developers.meethue.com/)
+[![Local control](https://img.shields.io/badge/control-local%20only-lightgrey.svg)](#what-it-stores-and-where-it-connects)
+[![Verified TLS](https://img.shields.io/badge/TLS-certificate%20verified-brightgreen.svg)](#what-it-stores-and-where-it-connects)
+
 Control your Philips Hue lights from the Omarchy bar: rooms, zones, scenes,
 colors, color temperature, single lamps and smart plugs. The plugin talks to
 the Hue bridge on your local network — no cloud account, no polling. Changes
 made elsewhere (Hue app, wall switches, automations) show up instantly through
 the bridge's event stream.
 
-| Rooms at a glance | Scenes | Colors | Color temperature |
-|---|---|---|---|
-| ![Rooms](screenshots/overview.png) | ![Scene dropdown](screenshots/scenes.png) | ![Color swatches and sliders](screenshots/color.png) | ![Warm to cold slider](screenshots/temperature.png) |
+<table>
+  <tr>
+    <th width="25%">Rooms at a glance</th>
+    <th width="25%">Scenes</th>
+    <th width="25%">Colors</th>
+    <th width="25%">Color temperature</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="screenshots/overview.png" alt="Rooms with status, color dot and switch"></td>
+    <td valign="top"><img src="screenshots/scenes.png" alt="Scene dropdown of a room"></td>
+    <td valign="top"><img src="screenshots/color.png" alt="Color swatches with hue and saturation sliders"></td>
+    <td valign="top"><img src="screenshots/temperature.png" alt="Warm to cold color temperature slider"></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -119,7 +138,8 @@ omarchy-light-control-hue all-off
 
 ```bash
 cargo test && cargo clippy --all-targets
-node shell/tests/model.test.js
+node tests/model.test.js
+bash tests/check-manifest.sh
 omarchy plugin validate .
 ```
 

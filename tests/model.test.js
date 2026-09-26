@@ -1,10 +1,10 @@
-// Run with: node shell/tests/model.test.js
+// Run with: node tests/model.test.js
 const assert = require("assert")
 const fs = require("fs")
 const path = require("path")
 const vm = require("vm")
 
-const source = fs.readFileSync(path.join(__dirname, "..", "Model.js"), "utf8").replace(".pragma library", "")
+const source = fs.readFileSync(path.join(__dirname, "..", "shell", "Model.js"), "utf8").replace(".pragma library", "")
 const Model = {}
 vm.runInNewContext(source + "\nObject.assign(exports, { strings, TABS, parseLine, lightsOf, groupsOfKind, plugs, tabsFor, initialTab, kelvin, mirek, kelvinRange, subtitle, hueDistance, summary, needsAttention, patchHome, compactError })", { exports: Model })
 
